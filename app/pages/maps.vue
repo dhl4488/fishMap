@@ -3,7 +3,7 @@ import type { FishingSpot } from '../composables/useFishingData'
 
 useHead({ title: 'Fishing spots · Tidelog', meta: [{ name: 'description', content: 'Map, save, and revisit your favorite fishing spots.' }] })
 
-const { data, addSpot } = useFishingData()
+const { data, addSpot, loading: dataLoading, error: dataError } = useFishingData()
 const selectedSpotId = ref('')
 const spotModalOpen = ref(false)
 const spotName = ref('')
@@ -47,11 +47,15 @@ function openSpotModal() {
   spotModalOpen.value = true
 }
 
-function saveSpot(spot: Omit<FishingSpot, 'id'>) {
-  addSpot(spot)
-  selectedSpotId.value = ''
-  spotModalOpen.value = false
-  showToast('Favorite spot saved to your map.')
+async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
+  try {
+    await addSpot(spot)
+    selectedSpotId.value = ''
+    spotModalOpen.value = false
+    showToast('Favorite spot saved to your map.')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : 'Could not save this spot.')
+  }
 }
 
 onBeforeUnmount(() => clearTimeout(toastTimer))
@@ -72,6 +76,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       </div>
       <button class="primary-button" @click="openSpotModal"><span class="plus">＋</span> Save a spot</button>
     </section>
+
+    <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
 
     <div class="map-layout">
       <section class="map-panel" aria-label="Map of selected fishing spot">
@@ -108,6 +114,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
             <span class="spot-select-copy"><strong>{{ spot.name }}</strong><span>{{ spot.water }} · {{ spot.kind.split(' · ').at(-1) }}</span></span>
           </button>
           <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:10px">Your saved places will show up here.</div>
+          <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:10px">Loading your saved spots…</div>
           <button class="text-button" style="margin-top:8px" @click="openSpotModal">＋ Add another spot</button>
         </section>
 

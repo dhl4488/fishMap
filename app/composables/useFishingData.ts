@@ -1,3 +1,12 @@
+import {
+  addDoc,
+  collection,
+  getDocs,
+  serverTimestamp,
+  type Firestore
+} from 'firebase/firestore'
+import type { TidelogUser } from './useFirebaseAuth'
+
 export interface FishingCatch {
   species: string
   quantity: number
@@ -21,66 +30,6 @@ export interface FishingSpot {
   longitude: number
   notes: string
 }
-
-const storageKey = 'tidelog-data-v1'
-
-// Starter entries give a first-time visit something to explore.
-const starterTrips: FishingTrip[] = [
-  {
-    id: 'trip-willow',
-    date: '2026-10-11',
-    location: 'Willow Creek',
-    catches: [{ species: 'Rainbow trout', quantity: 3 }, { species: 'Brown trout', quantity: 1 }],
-    conditions: 'Cloudy · 58°F',
-    notes: 'A quiet morning on the upper bend. The trout were rising just after sunrise; a little patience and a dry fly did the trick.'
-  },
-  {
-    id: 'trip-lake',
-    date: '2026-10-04',
-    location: 'Pine Lake',
-    catches: [{ species: 'Largemouth bass', quantity: 2 }],
-    conditions: 'Clear · 64°F',
-    notes: 'Worked the shaded edge near the reeds. One good-sized bass just before lunch.'
-  },
-  {
-    id: 'trip-river',
-    date: '2026-09-27',
-    location: 'North Fork',
-    catches: [{ species: 'Smallmouth bass', quantity: 2 }, { species: 'Bluegill', quantity: 2 }],
-    conditions: 'Breezy · 61°F',
-    notes: 'Took the long way down to the river and found a lovely stretch of water to myself.'
-  }
-]
-
-const starterSpots: FishingSpot[] = [
-  {
-    id: 'spot-willow',
-    name: 'Willow Creek Bend',
-    water: 'Willow Creek',
-    kind: 'Freshwater · River',
-    latitude: 44.0521,
-    longitude: -123.0868,
-    notes: 'Best at first light. Try the upper bend when the water is running clear.'
-  },
-  {
-    id: 'spot-pine',
-    name: 'Pine Lake Reeds',
-    water: 'Pine Lake',
-    kind: 'Freshwater · Lake',
-    latitude: 44.0618,
-    longitude: -123.102,
-    notes: 'A sheltered spot along the eastern edge. Reeds make a great bass hideout.'
-  },
-  {
-    id: 'spot-north',
-    name: 'North Fork Crossing',
-    water: 'North Fork',
-    kind: 'Freshwater · River',
-    latitude: 44.0447,
-    longitude: -123.0749,
-    notes: 'Rocky bottom with a deeper pool just downstream of the crossing.'
-  }
-]
 
 interface SavedData {
   trips: FishingTrip[]
@@ -117,62 +66,76 @@ function isFishingSpot(value: unknown): value is FishingSpot {
     typeof spot.notes === 'string'
 }
 
+async function loadCollection<T>(
+  db: Firestore,
+  userId: string,
+  collectionName: 'trips' | 'spots',
+  isValid: (value: unknown) => value is T
+): Promise<T[]> {
+  const snapshot = await getDocs(collection(db, 'users', userId, collectionName))
+  return snapshot.docs.map((entry) => {
+    const value = { ...entry.data(), id: entry.id }
+    if (!isValid(value)) throw new Error(`A saved ${collectionName} entry has an invalid format.`)
+    return value
+  })
+}
+
 export function useFishingData() {
-  const data = useState<SavedData>('fishing-data', () => ({
-    trips: starterTrips.map(trip => ({ ...trip, catches: trip.catches.map(item => ({ ...item })) })),
-    spots: starterSpots.map(spot => ({ ...spot }))
-  }))
-  const isLoaded = useState('fishing-data-loaded', () => false)
+  const { user, initialize } = useFirebaseAuth()
+  const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [] }))
+  const loading = useState('fishing-data-loading', () => false)
+  const error = useState<string | null>('fishing-data-error', () => null)
+  const db = import.meta.client ? useFirebaseDatabase() : null
 
-  if (import.meta.client) {
-    // Read browser storage after hydration so the server and first client render match.
-    onMounted(() => {
-      if (isLoaded.value) return
-      try {
-        const saved = localStorage.getItem(storageKey)
-        if (saved) {
-          const parsed: unknown = JSON.parse(saved)
-          // Browser storage can be edited externally, so validate it before trusting its shape.
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            'trips' in parsed &&
-            Array.isArray(parsed.trips) &&
-            parsed.trips.every(isFishingTrip) &&
-            'spots' in parsed &&
-            Array.isArray(parsed.spots) &&
-            parsed.spots.every(isFishingSpot)
-          ) {
-            data.value = parsed as SavedData
-          } else {
-            console.error('Saved Tidelog data has an invalid format; using starter entries instead.')
-          }
-        }
-      } catch (error) {
-        console.error('Could not read saved Tidelog data; using starter entries instead.', error)
-      }
-      isLoaded.value = true
-    })
-  }
+  async function loadUserData(account: TidelogUser | null) {
+    data.value = { trips: [], spots: [] }
+    error.value = null
+    if (!account || !db) {
+      loading.value = false
+      return
+    }
 
-  function persist() {
-    if (!import.meta.client) return
+    loading.value = true
     try {
-      localStorage.setItem(storageKey, JSON.stringify(data.value))
-    } catch (error) {
-      console.error('Could not save Tidelog data to this browser.', error)
+      const [trips, spots] = await Promise.all([
+        loadCollection(db, account.uid, 'trips', isFishingTrip),
+        loadCollection(db, account.uid, 'spots', isFishingSpot)
+      ])
+      if (user.value?.uid === account.uid) data.value = { trips, spots }
+    } catch (caughtError) {
+      console.error('Could not load this user’s fishing data from Firestore.', caughtError)
+      if (user.value?.uid === account.uid) {
+        error.value = 'Could not load your trips and spots. Please try reloading the page.'
+      }
+    } finally {
+      if (user.value?.uid === account.uid) loading.value = false
     }
   }
 
-  function addTrip(trip: Omit<FishingTrip, 'id'>) {
-    data.value.trips.unshift({ ...trip, id: `trip-${Date.now()}` })
-    persist()
+  if (import.meta.client) {
+    void initialize()
+    watch(user, account => void loadUserData(account), { immediate: true })
   }
 
-  function addSpot(spot: Omit<FishingSpot, 'id'>) {
-    data.value.spots.unshift({ ...spot, id: `spot-${Date.now()}` })
-    persist()
+  async function addTrip(trip: Omit<FishingTrip, 'id'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before saving a fishing trip.')
+    const saved = await addDoc(collection(db, 'users', account.uid, 'trips'), {
+      ...trip,
+      createdAt: serverTimestamp()
+    })
+    if (user.value?.uid === account.uid) data.value.trips.unshift({ ...trip, id: saved.id })
   }
 
-  return { data, addTrip, addSpot }
+  async function addSpot(spot: Omit<FishingSpot, 'id'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before saving a fishing spot.')
+    const saved = await addDoc(collection(db, 'users', account.uid, 'spots'), {
+      ...spot,
+      createdAt: serverTimestamp()
+    })
+    if (user.value?.uid === account.uid) data.value.spots.unshift({ ...spot, id: saved.id })
+  }
+
+  return { data, loading, error, addTrip, addSpot }
 }

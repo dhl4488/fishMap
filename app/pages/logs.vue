@@ -3,7 +3,7 @@ import type { FishingTrip } from '../composables/useFishingData'
 
 useHead({ title: 'My diary · Tidelog', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
 
-const { data, addTrip } = useFishingData()
+const { data, addTrip, loading: dataLoading, error: dataError } = useFishingData()
 const tripModalOpen = ref(false)
 const query = ref('')
 const yearFilter = ref('all')
@@ -27,10 +27,14 @@ function dateParts(value: string) {
   }
 }
 
-function saveTrip(trip: Omit<FishingTrip, 'id'>) {
-  addTrip(trip)
-  tripModalOpen.value = false
-  toastMessage.value = 'Trip added to your diary.'
+async function saveTrip(trip: Omit<FishingTrip, 'id'>) {
+  try {
+    await addTrip(trip)
+    tripModalOpen.value = false
+    toastMessage.value = 'Trip added to your diary.'
+  } catch (error) {
+    toastMessage.value = error instanceof Error ? error.message : 'Could not save this trip.'
+  }
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
@@ -54,6 +58,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       <button class="primary-button" @click="tripModalOpen = true"><span class="plus">＋</span> Log a trip</button>
     </section>
 
+    <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
+
     <div class="toolbar-row">
       <label class="search-box">
         <span aria-hidden="true">⌕</span>
@@ -66,7 +72,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       <span style="color:#929d96;font-size:10px;margin-left:auto">{{ filteredTrips.length }} {{ filteredTrips.length === 1 ? 'entry' : 'entries' }}</span>
     </div>
 
-    <div v-if="filteredTrips.length" class="diary-list">
+    <div v-if="dataLoading" class="panel empty-state empty-panel">Loading your diary…</div>
+    <div v-else-if="filteredTrips.length" class="diary-list">
       <article v-for="trip in filteredTrips" :key="trip.id" class="panel diary-entry">
         <div class="entry-header">
           <div class="entry-heading">

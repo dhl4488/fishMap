@@ -3,7 +3,8 @@ import type { FishingTrip } from '../composables/useFishingData'
 
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
 
-const { data, addTrip } = useFishingData()
+const { data, addTrip, loading: dataLoading, error: dataError } = useFishingData()
+const { name } = useUserProfile()
 const tripModalOpen = ref(false)
 const toastMessage = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -11,6 +12,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 const trips = computed(() => [...data.value.trips].sort((a, b) => b.date.localeCompare(a.date)))
 const totalCatches = computed(() => data.value.trips.reduce((total, trip) => total + trip.catches.reduce((sum, item) => sum + item.quantity, 0), 0))
 const lastTripDate = computed(() => trips.value[0]?.date)
+const firstName = computed(() => name.value.trim().split(/\s+/)[0] || 'Angler')
 
 function dateParts(value: string) {
   const date = new Date(`${value}T12:00:00`)
@@ -20,10 +22,14 @@ function dateParts(value: string) {
   }
 }
 
-function saveTrip(trip: Omit<FishingTrip, 'id'>) {
-  addTrip(trip)
-  tripModalOpen.value = false
-  toastMessage.value = 'Trip added to your diary.'
+async function saveTrip(trip: Omit<FishingTrip, 'id'>) {
+  try {
+    await addTrip(trip)
+    tripModalOpen.value = false
+    toastMessage.value = 'Trip added to your diary.'
+  } catch (error) {
+    toastMessage.value = error instanceof Error ? error.message : 'Could not save this trip.'
+  }
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
@@ -44,11 +50,13 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     <section class="page-heading">
       <div>
         <p class="eyebrow">YOUR FISHING JOURNAL</p>
-        <h1>Good morning, Alex <span aria-hidden="true">☀</span></h1>
+        <h1>Good morning, {{ firstName }} <span aria-hidden="true">☀</span></h1>
         <p class="subtitle">Every day on the water has a story. Here's yours so far.</p>
       </div>
       <button class="primary-button" @click="tripModalOpen = true"><span class="plus">＋</span> Log a trip</button>
     </section>
+
+    <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
 
     <section class="stats-grid" aria-label="Fishing statistics">
       <article class="stat-card">
@@ -76,7 +84,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
           <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
         </div>
         <div class="panel" style="padding: 15px 18px">
-          <div v-if="trips.length" class="trip-list">
+          <div v-if="dataLoading" class="empty-state">Loading your trips…</div>
+          <div v-else-if="trips.length" class="trip-list">
             <NuxtLink v-for="trip in trips.slice(0, 4)" :key="trip.id" to="/logs" class="trip-row">
               <div class="trip-date-box"><strong>{{ dateParts(trip.date).day }}</strong><span>{{ dateParts(trip.date).month }}</span></div>
               <div class="trip-row-main">

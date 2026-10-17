@@ -1,5 +1,12 @@
 <script setup lang="ts">
 const route = useRoute()
+const { name } = useUserProfile()
+const { signOutUser } = useFirebaseAuth()
+
+async function logout() {
+  await signOutUser()
+  await navigateTo('/login')
+}
 
 const navigation = [
   { label: 'Overview', to: '/', icon: '◫' },
@@ -9,7 +16,8 @@ const navigation = [
 </script>
 
 <template>
-  <div class="app-shell">
+  <NuxtPage v-if="route.path === '/login'" />
+  <div v-else class="app-shell">
     <aside class="sidebar">
       <NuxtLink to="/" class="brand" aria-label="Tidelog home">
         <span class="brand-mark" aria-hidden="true">
@@ -47,9 +55,9 @@ const navigation = [
           <p class="season-copy">The best stories start before the first bite.</p>
         </div>
         <div class="profile">
-          <div class="avatar">A</div>
-          <div class="profile-text"><strong>Daniel Lee</strong><span>Weekend angler</span></div>
-          <span class="profile-menu">···</span>
+          <div class="avatar">{{ name.charAt(0).toUpperCase() }}</div>
+          <div class="profile-text"><strong>{{ name }}</strong><span>Weekend angler</span></div>
+          <button class="profile-menu" aria-label="Sign out" title="Sign out" @click="logout">↗</button>
         </div>
       </div>
     </aside>
@@ -119,7 +127,7 @@ a { color: inherit; text-decoration: none; }
 .profile-text { display: grid; gap: 3px; }
 .profile-text strong { font-size: 11px; }
 .profile-text span { color: #8b9690; font-size: 10px; }
-.profile-menu { color: #818e87; font-size: 19px; margin-left: auto; }
+.profile-menu { background: transparent; border: 0; color: #818e87; font-size: 16px; margin-left: auto; padding: 5px; }
 .main-content { margin-left: 248px; min-height: 100vh; padding: 0 54px 56px; }
 
 .page-wrap { margin: 0 auto; max-width: 1110px; }
@@ -145,6 +153,8 @@ h1,h2,h3,p { margin-top: 0; }
 .section-heading a,.text-button { background: none; border: 0; color: #63836d; font-size: 11px; font-weight: 600; padding: 4px 0; }
 .section-heading a:hover,.text-button:hover { color: var(--green-dark); }
 .panel { background: white; border: 1px solid #ecefea; border-radius: 12px; }
+.auth-message { border-radius: 8px; font-size: 11px; line-height: 1.55; margin: 0 0 15px; padding: 10px 12px; }
+.auth-error { background: #fbf0ec; color: #985b45; }
 
 .stats-grid { display: grid; gap: 13px; grid-template-columns: repeat(4,minmax(0,1fr)); margin-bottom: 27px; }
 .stat-card { background: #fff; border: 1px solid #ecefea; border-radius: 11px; min-height: 109px; padding: 16px 17px; }
