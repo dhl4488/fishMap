@@ -1,0 +1,152 @@
+[
+  {
+    "species": "Atlantic salmon",
+    "file": "atlantic-salmon.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Black crappie",
+    "file": "black-crappie.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Black bullhead",
+    "file": "black-bullhead.glb",
+    "triangles": 428
+  },
+  {
+    "species": "Bluegill",
+    "file": "bluegill.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Brook trout",
+    "file": "brook-trout.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Brown bullhead",
+    "file": "brown-bullhead.glb",
+    "triangles": 428
+  },
+  {
+    "species": "Brown trout",
+    "file": "brown-trout.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Burbot",
+    "file": "burbot.glb",
+    "triangles": 432
+  },
+  {
+    "species": "Channel catfish",
+    "file": "channel-catfish.glb",
+    "triangles": 428
+  },
+  {
+    "species": "Chinook salmon",
+    "file": "chinook-salmon.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Cisco (lake herring)",
+    "file": "cisco-lake-herring.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Coho salmon",
+    "file": "coho-salmon.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Common carp",
+    "file": "common-carp.glb",
+    "triangles": 408
+  },
+  {
+    "species": "Lake sturgeon",
+    "file": "lake-sturgeon.glb",
+    "triangles": 520
+  },
+  {
+    "species": "Lake trout",
+    "file": "lake-trout.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Lake whitefish",
+    "file": "lake-whitefish.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Largemouth bass",
+    "file": "largemouth-bass.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Muskellunge",
+    "file": "muskellunge.glb",
+    "triangles": 392
+  },
+  {
+    "species": "Northern pike",
+    "file": "northern-pike.glb",
+    "triangles": 392
+  },
+  {
+    "species": "Pumpkinseed",
+    "file": "pumpkinseed.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Rainbow smelt",
+    "file": "rainbow-smelt.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Rainbow trout / steelhead",
+    "file": "rainbow-trout-steelhead.glb",
+    "triangles": 396
+  },
+  {
+    "species": "Rock bass",
+    "file": "rock-bass.glb",
+    "triangles": 408
+  },
+  {
+    "species": "Sauger",
+    "file": "sauger.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Smallmouth bass",
+    "file": "smallmouth-bass.glb",
+    "triangles": 404
+  },
+  {
+    "species": "Walleye",
+    "file": "walleye.glb",
+    "triangles": 404
+  },
+  {
+    "species": "White bass",
+    "file": "white-bass.glb",
+    "triangles": 404
+  },
+  {
+    "species": "White crappie",
+    "file": "white-crappie.glb",
+    "triangles": 404
+  },
+  {
+    "species": "White sucker",
+    "file": "white-sucker.glb",
+    "triangles": 392
+  },
+  {
+    "species": "Yellow perch",
+    "file": "yellow-perch.glb",
+    "triangles": 404
+  }
+]

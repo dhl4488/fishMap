@@ -8,6 +8,8 @@ const tripModalOpen = ref(false)
 const query = ref('')
 const yearFilter = ref('all')
 const toastMessage = ref('')
+const tripSaving = ref(false)
+const tripSaveError = ref<string | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const years = computed(() => [...new Set(data.value.trips.map(trip => trip.date.slice(0, 4)))].sort((a, b) => b.localeCompare(a)))
@@ -18,6 +20,7 @@ const filteredTrips = computed(() => [...data.value.trips]
   })
   .sort((a, b) => b.date.localeCompare(a.date)))
 
+// Format diary dates without allowing timezone conversion to change the calendar day.
 function dateParts(value: string) {
   const date = new Date(`${value}T12:00:00`)
   return {
@@ -27,13 +30,17 @@ function dateParts(value: string) {
   }
 }
 
-async function saveTrip(trip: Omit<FishingTrip, 'id'>) {
+async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[]) {
+  tripSaving.value = true
+  tripSaveError.value = null
   try {
-    await addTrip(trip)
+    await addTrip(trip, photos)
     tripModalOpen.value = false
     toastMessage.value = 'Trip added to your diary.'
   } catch (error) {
-    toastMessage.value = error instanceof Error ? error.message : 'Could not save this trip.'
+    tripSaveError.value = error instanceof Error ? error.message : 'Could not save this trip.'
+  } finally {
+    tripSaving.value = false
   }
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
@@ -43,6 +50,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 </script>
 
 <template>
+  <!-- Searchable, year-filtered timeline for the signed-in user's fishing trips. -->
   <div class="page-wrap">
     <header class="topbar">
       <div class="breadcrumb">Your space <span aria-hidden="true">/</span> <strong>My diary</strong></div>
@@ -83,7 +91,26 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
           <span class="entry-weather">{{ trip.catches.reduce((sum, item) => sum + item.quantity, 0) }} catches</span>
         </div>
         <div v-if="trip.catches.length" class="entry-catches">
-          <span v-for="(item, index) in trip.catches" :key="`${item.species}-${index}`" class="catch-chip">{{ item.species }} · {{ item.quantity }}</span>
+          <div v-for="(item, index) in trip.catches" :key="`${item.species}-${index}`" class="catch-model-row">
+            <FishModel :species="item.species" />
+            <div class="catch-model-details">
+              <span class="catch-chip">{{ item.species }}</span>
+              <span class="catch-quantity">{{ item.quantity }} caught</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="trip.photos?.length" class="entry-photo-gallery" aria-label="Trip photos">
+          <a
+            v-for="(photo, index) in trip.photos"
+            :key="photo"
+            :href="photo"
+            target="_blank"
+            rel="noreferrer"
+            class="entry-photo"
+            :aria-label="`Open trip photo ${index + 1} in a new tab`"
+          >
+            <img :src="photo" :alt="`Photo ${index + 1} from ${trip.location}`" loading="lazy">
+          </a>
         </div>
         <p v-if="trip.notes" class="entry-notes">{{ trip.notes }}</p>
       </article>
@@ -96,6 +123,6 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     </div>
   </div>
 
-  <TripModal :model-value="tripModalOpen" @close="tripModalOpen = false" @save="saveTrip" />
+  <TripModal :model-value="tripModalOpen" :saving="tripSaving" :save-error="tripSaveError" @close="tripModalOpen = false" @save="saveTrip" />
   <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
 </template>

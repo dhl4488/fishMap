@@ -6,6 +6,8 @@ useHead({ title: 'Fishing spots · Tidelog', meta: [{ name: 'description', conte
 const { data, addSpot, loading: dataLoading, error: dataError } = useFishingData()
 const selectedSpotId = ref('')
 const spotModalOpen = ref(false)
+const pickMode = ref(false)
+const pickedLocation = ref<{ latitude: number; longitude: number } | null>(null)
 const spotName = ref('')
 const spotWater = ref('')
 const spotKind = ref('Freshwater · Lake')
@@ -16,18 +18,14 @@ const toastMessage = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const selectedSpot = computed(() => data.value.spots.find(spot => spot.id === selectedSpotId.value) ?? data.value.spots[0])
-const mapSource = computed(() => {
-  const latitude = selectedSpot.value?.latitude ?? 44.0521
-  const longitude = selectedSpot.value?.longitude ?? -123.0868
-  const latitudePadding = 0.035
-  const longitudePadding = 0.05
-  // OSM's bbox order is west, south, east, north.
-  const bounds = [longitude - longitudePadding, latitude - latitudePadding, longitude + longitudePadding, latitude + latitudePadding].join(',')
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bounds)}&layer=mapnik&marker=${latitude}%2C${longitude}`
-})
+watch(() => data.value.spots, (spots) => {
+  const firstSpot = spots[0]
+  if (!selectedSpotId.value && firstSpot) selectedSpotId.value = firstSpot.id
+}, { immediate: true })
+
 const mapLink = computed(() => {
-  const latitude = selectedSpot.value?.latitude ?? 44.0521
-  const longitude = selectedSpot.value?.longitude ?? -123.0868
+  const latitude = selectedSpot.value?.latitude ?? 44.608
+  const longitude = selectedSpot.value?.longitude ?? -79.42
   return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=13/${latitude}/${longitude}`
 })
 
@@ -37,14 +35,28 @@ function showToast(message: string) {
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
 
-function openSpotModal() {
+function startSpotPlacement() {
   spotName.value = ''
   spotWater.value = ''
   spotKind.value = 'Freshwater · Lake'
   spotLatitude.value = ''
   spotLongitude.value = ''
   spotNotes.value = ''
+  pickedLocation.value = null
+  pickMode.value = true
+}
+
+function handleMapPick(coordinates: { latitude: number; longitude: number }) {
+  pickedLocation.value = coordinates
+  spotLatitude.value = coordinates.latitude.toFixed(6)
+  spotLongitude.value = coordinates.longitude.toFixed(6)
+  pickMode.value = false
   spotModalOpen.value = true
+}
+
+function cancelSpotModal() {
+  spotModalOpen.value = false
+  pickedLocation.value = null
 }
 
 async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
@@ -52,6 +64,7 @@ async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
     await addSpot(spot)
     selectedSpotId.value = ''
     spotModalOpen.value = false
+    pickedLocation.value = null
     showToast('Favorite spot saved to your map.')
   } catch (error) {
     showToast(error instanceof Error ? error.message : 'Could not save this spot.')
@@ -62,6 +75,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 </script>
 
 <template>
+  <!-- Map, selected-spot details, and saved-location controls. -->
   <div class="page-wrap">
     <header class="topbar">
       <div class="breadcrumb">Your space <span aria-hidden="true">/</span> <strong>Fishing spots</strong></div>
@@ -74,15 +88,24 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         <h1>Fishing spots</h1>
         <p class="subtitle">Keep your favorite stretches of water close at hand.</p>
       </div>
-      <button class="primary-button" @click="openSpotModal"><span class="plus">＋</span> Save a spot</button>
+      <button class="primary-button" @click="pickMode ? (pickMode = false) : startSpotPlacement()">
+        <span class="plus">{{ pickMode ? '×' : '＋' }}</span>{{ pickMode ? 'Cancel placement' : 'Pick a spot on map' }}
+      </button>
     </section>
 
     <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
 
     <div class="map-layout">
       <section class="map-panel" aria-label="Map of selected fishing spot">
-        <iframe :src="mapSource" :title="selectedSpot ? `Map showing ${selectedSpot.name}` : 'Map of your fishing spots'" loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
-        <div class="map-attribution">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></div>
+        <FishingMap
+          :spots="data.spots"
+          :selected-spot-id="selectedSpot?.id"
+          :pick-mode="pickMode"
+          :picked-location="pickedLocation"
+          @select="selectedSpotId = $event"
+          @pick="handleMapPick"
+        />
+        <div v-if="pickMode" class="map-pick-prompt" role="status">Click the map to place your fishing spot</div>
       </section>
 
       <aside class="map-side">
@@ -97,7 +120,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         </article>
         <article v-else class="panel empty-state" style="padding:27px 15px">
           <span>⌖</span><strong>No favorite spots yet</strong><span>Save a spot to see it on your map.</span>
-          <button class="text-button" @click="openSpotModal">Save your first spot →</button>
+          <button class="text-button" @click="startSpotPlacement">Choose a place on the map →</button>
         </article>
 
         <section class="panel spot-browser">
@@ -115,16 +138,17 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
           </button>
           <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:10px">Your saved places will show up here.</div>
           <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:10px">Loading your saved spots…</div>
-          <button class="text-button" style="margin-top:8px" @click="openSpotModal">＋ Add another spot</button>
+          <button class="text-button" style="margin-top:8px" @click="startSpotPlacement">＋ Add another spot</button>
         </section>
 
-        <div class="map-hint">Choose a saved place to center the map on it. Your spots stay private in this browser.</div>
+        <div class="map-hint">{{ pickMode ? 'Click anywhere on the map to drop a pin. You can add the spot name and notes next.' : 'Choose a saved place to center the map, or pick a spot to drop a new pin.' }} Your spots stay private to your account.</div>
       </aside>
     </div>
   </div>
 
+  <!-- Place the save form above the map and app layout stacking contexts. -->
   <Teleport to="body">
-    <div v-if="spotModalOpen" class="modal-backdrop" @click.self="spotModalOpen = false">
+    <div v-if="spotModalOpen" class="modal-backdrop" @click.self="cancelSpotModal">
       <form class="modal" @submit.prevent="saveSpot({
         name: spotName.trim(),
         water: spotWater.trim(),
@@ -134,18 +158,17 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         notes: spotNotes.trim()
       })">
         <div class="modal-header">
-          <div><p class="eyebrow">YOUR PERSONAL ATLAS</p><h2>Save a fishing spot</h2><p>Add its coordinates to see it on your map.</p></div>
-          <button class="modal-close" type="button" aria-label="Close dialog" @click="spotModalOpen = false">×</button>
+          <div><p class="eyebrow">YOUR PERSONAL ATLAS</p><h2>Save a fishing spot</h2><p>Give your map pin a name and a few helpful details.</p></div>
+          <button class="modal-close" type="button" aria-label="Close dialog" @click="cancelSpotModal">×</button>
         </div>
         <div class="form-grid">
-          <div class="form-field form-field-full"><label for="spot-name">Spot name</label><input id="spot-name" v-model="spotName" placeholder="e.g. The quiet bend" required maxlength="80"></div>
-          <div class="form-field"><label for="spot-water">Water / place</label><input id="spot-water" v-model="spotWater" placeholder="e.g. Pine Lake" required maxlength="80"></div>
+          <div class="form-field form-field-full"><label for="spot-name">Spot name</label><input id="spot-name" v-model="spotName" placeholder="e.g. Orillia shoreline" required maxlength="80"></div>
+          <div class="form-field"><label for="spot-water">Water / place</label><input id="spot-water" v-model="spotWater" placeholder="e.g. Lake Simcoe" required maxlength="80"></div>
           <div class="form-field"><label for="spot-kind">Type</label><select id="spot-kind" v-model="spotKind"><option>Freshwater · Lake</option><option>Freshwater · River</option><option>Freshwater · Creek</option><option>Saltwater · Shore</option><option>Saltwater · Bay</option><option>Other</option></select></div>
-          <div class="form-field"><label for="spot-lat">Latitude</label><input id="spot-lat" v-model="spotLatitude" type="number" min="-90" max="90" step="any" placeholder="44.0521" required></div>
-          <div class="form-field"><label for="spot-lon">Longitude</label><input id="spot-lon" v-model="spotLongitude" type="number" min="-180" max="180" step="any" placeholder="-123.0868" required></div>
+          <div class="form-field form-field-full"><span class="coordinate-label">Map pin selected</span><span v-if="pickedLocation" class="coordinate-value">{{ pickedLocation.latitude.toFixed(5) }}, {{ pickedLocation.longitude.toFixed(5) }}</span></div>
           <div class="form-field form-field-full"><label for="spot-notes">A note for next time <span style="color:#9aa59e;font-weight:400">(optional)</span></label><textarea id="spot-notes" v-model="spotNotes" placeholder="Access, best time of day, what tends to bite…" maxlength="500" /></div>
         </div>
-        <div class="form-actions"><button class="cancel-button" type="button" @click="spotModalOpen = false">Cancel</button><button class="primary-button" type="submit">Save favorite spot</button></div>
+        <div class="form-actions"><button class="cancel-button" type="button" @click="cancelSpotModal">Cancel</button><button class="primary-button" type="submit" :disabled="!pickedLocation">Save favorite spot</button></div>
       </form>
     </div>
   </Teleport>

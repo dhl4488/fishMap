@@ -1,12 +1,16 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
+  setDoc,
   serverTimestamp,
   type Firestore
 } from 'firebase/firestore'
+import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
 import type { TidelogUser } from './useFirebaseAuth'
 
+// Shared data shapes used by diary entries and saved map locations.
 export interface FishingCatch {
   species: string
   quantity: number
@@ -19,6 +23,7 @@ export interface FishingTrip {
   catches: FishingCatch[]
   conditions: string
   notes: string
+  photos?: string[]
 }
 
 export interface FishingSpot {
@@ -36,6 +41,7 @@ interface SavedData {
   spots: FishingSpot[]
 }
 
+// Validate Firestore payloads at the boundary before exposing them to the UI.
 function isFishingCatch(value: unknown): value is FishingCatch {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
@@ -51,7 +57,8 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     Array.isArray(trip.catches) &&
     trip.catches.every(isFishingCatch) &&
     typeof trip.conditions === 'string' &&
-    typeof trip.notes === 'string'
+    typeof trip.notes === 'string' &&
+    (trip.photos === undefined || (Array.isArray(trip.photos) && trip.photos.every(photo => typeof photo === 'string')))
 }
 
 function isFishingSpot(value: unknown): value is FishingSpot {
@@ -86,7 +93,9 @@ export function useFishingData() {
   const loading = useState('fishing-data-loading', () => false)
   const error = useState<string | null>('fishing-data-error', () => null)
   const db = import.meta.client ? useFirebaseDatabase() : null
+  const storage = import.meta.client ? useFirebaseStorage() : null
 
+  // Fetch only the signed-in account's subcollections and discard stale results after an account switch.
   async function loadUserData(account: TidelogUser | null) {
     data.value = { trips: [], spots: [] }
     error.value = null
@@ -117,14 +126,47 @@ export function useFishingData() {
     watch(user, account => void loadUserData(account), { immediate: true })
   }
 
-  async function addTrip(trip: Omit<FishingTrip, 'id'>) {
+  // Firestore paths are scoped by Firebase UID, so saved data cannot be mixed between accounts.
+  async function addTrip(trip: Omit<FishingTrip, 'id'>, photos: File[] = []) {
     const account = user.value
-    if (!account || !db) throw new Error('Sign in before saving a fishing trip.')
-    const saved = await addDoc(collection(db, 'users', account.uid, 'trips'), {
-      ...trip,
-      createdAt: serverTimestamp()
-    })
-    if (user.value?.uid === account.uid) data.value.trips.unshift({ ...trip, id: saved.id })
+    if (!account || !db || !storage) throw new Error('Sign in before saving a fishing trip.')
+    if (photos.length > 6) throw new Error('You can attach up to 6 photos per trip.')
+    if (photos.some(photo => !photo.type.startsWith('image/'))) throw new Error('Trip attachments must be image files.')
+    if (photos.some(photo => photo.size >= 10 * 1024 * 1024)) throw new Error('Each trip photo must be smaller than 10 MB.')
+
+    const tripReference = doc(collection(db, 'users', account.uid, 'trips'))
+    const uploadedReferences: ReturnType<typeof storageRef>[] = []
+
+    try {
+      const uploadResults = await Promise.allSettled(photos.map(async (photo, index) => {
+        const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const reference = storageRef(storage, `users/${account.uid}/trips/${tripReference.id}/${Date.now()}-${index}-${safeName}`)
+        uploadedReferences.push(reference)
+        await uploadBytes(reference, photo, { contentType: photo.type })
+        return getDownloadURL(reference)
+      }))
+      const failedUpload = uploadResults.find(result => result.status === 'rejected')
+      if (failedUpload?.status === 'rejected') throw failedUpload.reason
+      const photoUrls = uploadResults
+        .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
+        .map(result => result.value)
+      const savedTrip = { ...trip, photos: photoUrls }
+
+      await setDoc(tripReference, {
+        ...savedTrip,
+        createdAt: serverTimestamp()
+      })
+      if (user.value?.uid === account.uid) data.value.trips.unshift({ ...savedTrip, id: tripReference.id })
+    } catch (error) {
+      await Promise.all(uploadedReferences.map(async (reference) => {
+        try {
+          await deleteObject(reference)
+        } catch (cleanupError) {
+          console.error('Could not remove an uploaded trip photo after the trip failed to save.', cleanupError)
+        }
+      }))
+      throw error
+    }
   }
 
   async function addSpot(spot: Omit<FishingSpot, 'id'>) {

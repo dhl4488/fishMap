@@ -11,6 +11,7 @@ const password = ref('')
 const errorMessage = ref('')
 const submitting = ref(false)
 
+// Resolve a returning user's Firebase session before leaving the sign-in screen visible.
 onMounted(async () => {
   await initialize()
   if (user.value) await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
@@ -35,17 +36,11 @@ async function submit() {
 </script>
 
 <template>
+  <!-- Public sign-in and account-creation page. -->
   <main class="auth-page">
     <section class="auth-card">
       <NuxtLink to="/" class="brand auth-brand">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M12 8.3C9.5 6.9 6.7 6.5 4 7.3v11c2.8-.8 5.5-.4 8 1.1V8.3Z" fill="#f3f6ef" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2" />
-            <path d="M12 8.3c2.5-1.4 5.2-1.8 8-1v11c-2.7-.8-5.4-.4-8 1.1V8.3Z" fill="#e5ede3" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2" />
-            <path d="m4.8 19.3 12-13.5c.5-.6 1.4-.7 1.9-.2.4.4.5 1 .2 1.5l-.4.7" stroke="#193b2e" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-            <path d="M19 7.7c-.1 3-.6 5.4-1.8 7.4M17.2 15c-.8.7-.7 1.9.1 2.1.6.1 1-.3.7-.8" stroke="#efc477" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" />
-          </svg>
-        </span>
+        <img class="brand-mark" src="/assets/tide-log-icon.png" alt="">
         <span class="brand-name">tidelog<span class="brand-period">.</span></span>
       </NuxtLink>
       <p class="eyebrow">YOUR DAYS ON THE WATER</p>

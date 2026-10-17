@@ -16,21 +16,12 @@ const navigation = [
 </script>
 
 <template>
+  <!-- Render sign-in outside the authenticated app shell and navigation. -->
   <NuxtPage v-if="route.path === '/login'" />
   <div v-else class="app-shell">
     <aside class="sidebar">
       <NuxtLink to="/" class="brand" aria-label="Tidelog home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M12 8.3C9.5 6.9 6.7 6.5 4 7.3v11c2.8-.8 5.5-.4 8 1.1V8.3Z" fill="#f3f6ef" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2" />
-            <path d="M12 8.3c2.5-1.4 5.2-1.8 8-1v11c-2.7-.8-5.4-.4-8 1.1V8.3Z" fill="#e5ede3" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2" />
-            <path d="M6.5 10.2c1.5-.2 2.8 0 4 .6M6.5 12.5c1.4-.1 2.8.2 4 .8m7-3.7c-1.4-.1-2.8.1-4 .7m4 1.6c-1.4 0-2.8.3-4 1" stroke="#9db49f" stroke-linecap="round" stroke-width=".8" />
-            <!-- Draw the rod over the journal so the two parts remain distinct at icon size. -->
-            <path d="m4.8 19.3 12-13.5c.5-.6 1.4-.7 1.9-.2.4.4.5 1 .2 1.5l-.4.7" stroke="#193b2e" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-            <path d="M19 7.7c-.1 3-.6 5.4-1.8 7.4" stroke="#efc477" stroke-linecap="round" stroke-width="1.4" />
-            <path d="M17.2 15c-.8.7-.7 1.9.1 2.1.6.1 1-.3.7-.8" stroke="#efc477" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-          </svg>
-        </span>
+        <img class="brand-mark" src="/assets/tide-log-icon.png" alt="">
         <span class="brand-name">tidelog<span class="brand-period">.</span></span>
       </NuxtLink>
 
@@ -69,6 +60,7 @@ const navigation = [
 </template>
 
 <style>
+/* Shared design tokens and layout styles for the authenticated app shell and pages. */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -107,8 +99,7 @@ a { color: inherit; text-decoration: none; }
   z-index: 5;
 }
 .brand { align-items: center; display: flex; gap: 9px; margin: 2px 0 53px 9px; }
-.brand-mark { align-items: center; background: #2f684f; border-radius: 11px; color: white; display: flex; height: 37px; justify-content: center; width: 37px; }
-.brand-mark svg { height: 23px; width: 23px; }
+.brand-mark { border-radius: 11px; display: block; flex: 0 0 37px; height: 37px; object-fit: cover; width: 37px; }
 .brand-name { font: 800 22px/1 Manrope,sans-serif; letter-spacing: -1.1px; }
 .brand-period { color: #82aa80; }
 .sidebar-caption { color: #a0aaa4; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; margin: 0 0 14px 12px; }
@@ -183,9 +174,6 @@ h1,h2,h3,p { margin-top: 0; }
 .spot-card h3 { font-size: 11px; font-weight: 700; margin: 0 0 4px; }
 .spot-card p { color: #8a9690; font-size: 9px; margin: 0; }
 .spot-arrow { color: #a0aaa4; font-size: 18px; margin-left: auto; }
-.dashboard-map-link { align-items: center; background: #eaf1eb; border-radius: 9px; color: #587661; display: flex; font-size: 10px; font-weight: 600; justify-content: center; margin-top: 10px; padding: 10px; }
-.dashboard-map-link:hover { background: #e1ebe2; }
-
 .toolbar-row { align-items: center; display: flex; gap: 10px; margin: 0 0 16px; }
 .search-box { align-items: center; background: white; border: 1px solid #e7ebe6; border-radius: 8px; color: #89958e; display: flex; flex: 1; gap: 8px; max-width: 340px; padding: 0 11px; }
 .search-box input { background: transparent; border: 0; color: var(--ink); font-size: 11px; height: 36px; outline: 0; width: 100%; }
@@ -198,17 +186,22 @@ h1,h2,h3,p { margin-top: 0; }
 .entry-heading .trip-date-box { flex-basis: 45px; }
 .entry-heading h2 { font: 700 13px Manrope,sans-serif; margin: 0 0 5px; }
 .entry-heading p { color: #89958e; font-size: 10px; margin: 0; }
-.entry-catches { border-top: 1px solid #f0f2ee; display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding-top: 12px; }
+.entry-catches { border-top: 1px solid #f0f2ee; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-top: 12px; }
+.catch-model-row { align-items: center; background: #fff; border: 1px solid #edf0eb; border-radius: 9px; display: flex; gap: 10px; min-width: 210px; padding: 6px; }
+.catch-model-details { align-items: flex-start; display: grid; gap: 6px; }
+.catch-quantity { color: #89958e; font-size: 9px; padding-left: 3px; }
 .catch-chip { background: #f5f7f4; border-radius: 5px; color: #6f7e74; font-size: 9px; padding: 5px 8px; }
+.entry-photo-gallery { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.entry-photo { border-radius: 8px; height: 92px; overflow: hidden; width: 112px; }
+.entry-photo img { height: 100%; object-fit: cover; transition: transform .18s; width: 100%; }
+.entry-photo:hover img { transform: scale(1.04); }
 .entry-notes { color: #718078; font-size: 11px; line-height: 1.6; margin: 12px 0 0; }
 .entry-weather { color: #96a19b; font-size: 10px; }
 .empty-panel { padding: 45px 20px; }
 
 .map-layout { display: grid; gap: 17px; grid-template-columns: minmax(0,1.7fr) minmax(260px,.8fr); }
-.map-panel { background: #e5eee9; border: 1px solid #dfe8e1; border-radius: 12px; min-height: 490px; overflow: hidden; position: relative; }
-.map-panel iframe { border: 0; display: block; height: 490px; width: 100%; }
-.map-attribution { background: rgba(255,255,255,.88); border-radius: 4px; bottom: 10px; color: #62736a; font-size: 9px; padding: 5px 7px; position: absolute; right: 9px; }
-.map-attribution a { color: #4d7460; }
+.map-panel { background: #e5eee9; border: 1px solid #dfe8e1; border-radius: 12px; height: 490px; min-height: 490px; overflow: hidden; position: relative; }
+.map-pick-prompt { background: #244e3d; border-radius: 8px; bottom: 14px; color: white; font-size: 11px; font-weight: 600; left: 50%; line-height: 1.45; max-width: calc(100% - 24px); padding: 10px 14px; pointer-events: none; position: absolute; text-align: center; transform: translateX(-50%); white-space: normal; z-index: 1100; }
 .map-side { align-self: start; display: grid; gap: 12px; }
 .spot-summary { padding: 17px; }
 .spot-summary-head { align-items: flex-start; display: flex; justify-content: space-between; }
@@ -216,6 +209,8 @@ h1,h2,h3,p { margin-top: 0; }
 .spot-summary .spot-kind { color: #8b9790; font-size: 10px; margin: 0; }
 .favorite-heart { align-items: center; background: #f3f6f2; border-radius: 7px; color: #6b8c72; display: flex; font-size: 16px; height: 31px; justify-content: center; width: 31px; }
 .coordinate-row { border-top: 1px solid #eff1ed; color: #76837b; display: flex; font-size: 10px; justify-content: space-between; margin-top: 14px; padding-top: 12px; }
+.coordinate-label { color: #58675e; font-size: 10px; font-weight: 600; }
+.coordinate-value { color: #6b7a70; font-size: 11px; font-variant-numeric: tabular-nums; }
 .spot-notes { color: #85928a; font-size: 10px; line-height: 1.55; margin: 12px 0 0; }
 .spot-browser { padding: 15px; }
 .spot-browser .section-heading { margin-bottom: 10px; }
@@ -228,7 +223,7 @@ h1,h2,h3,p { margin-top: 0; }
 .spot-select-copy span { color: #8d9992; font-size: 9px; }
 .map-hint { background: #f3f6f1; border-radius: 8px; color: #76857b; font-size: 10px; line-height: 1.55; padding: 11px; }
 
-.modal-backdrop { align-items: center; background: rgba(21,33,27,.42); display: flex; inset: 0; justify-content: center; padding: 18px; position: fixed; z-index: 20; }
+.modal-backdrop { align-items: center; background: rgba(21,33,27,.42); display: flex; inset: 0; justify-content: center; padding: 18px; position: fixed; z-index: 2000; }
 .modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 65px rgba(20,40,27,.2); max-height: calc(100vh - 36px); max-width: 500px; overflow: auto; padding: 25px; width: 100%; }
 .modal-header { align-items: flex-start; display: flex; justify-content: space-between; margin-bottom: 20px; }
 .modal-header h2 { font: 700 20px Manrope,sans-serif; letter-spacing: -.5px; margin: 0 0 5px; }
@@ -255,7 +250,7 @@ h1,h2,h3,p { margin-top: 0; }
 @media (max-width: 760px) {
   .sidebar { bottom: auto; height: 62px; padding: 0 16px; right: 0; top: 0; width: 100%; flex-direction: row; align-items: center; border-bottom: 1px solid #eef0ec; border-right: 0; }
   .brand { margin: 0 auto 0 0; }
-  .brand-mark { border-radius: 8px; height: 32px; width: 32px; }
+  .brand-mark { border-radius: 8px; flex-basis: 32px; height: 32px; width: 32px; }
   .brand-name { font-size: 19px; }
   .sidebar-caption,.sidebar-bottom { display: none; }
   .main-nav { display: flex; gap: 4px; }
@@ -265,7 +260,7 @@ h1,h2,h3,p { margin-top: 0; }
   .topbar { height: 58px; margin-bottom: 27px; }
   .today-label { display: none; }
   .dashboard-grid,.map-layout { grid-template-columns: 1fr; }
-  .map-panel,.map-panel iframe { min-height: 370px; height: 370px; }
+  .map-panel { min-height: 370px; height: 370px; }
   .map-side { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 500px) {

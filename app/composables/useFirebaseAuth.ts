@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth'
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app'
 import { getFirestore, type Firestore } from 'firebase/firestore'
+import { getStorage, type FirebaseStorage } from 'firebase/storage'
 
 export interface TidelogUser {
   uid: string
@@ -20,6 +21,7 @@ interface FirebaseClient {
   app: FirebaseApp
   auth: ReturnType<typeof getAuth>
   db: Firestore
+  storage: FirebaseStorage
 }
 
 interface FirebaseOptions {
@@ -32,6 +34,7 @@ interface FirebaseOptions {
   measurementId?: string
 }
 
+// Reuse one Firebase app instance in the browser rather than initializing per component.
 let firebaseClient: FirebaseClient | null = null
 
 function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
@@ -42,7 +45,7 @@ function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
 
   const app = getApps().find(candidate => candidate.name === 'tidelog')
     ?? initializeApp(options, 'tidelog')
-  firebaseClient = { app, auth: getAuth(app), db: getFirestore(app) }
+  firebaseClient = { app, auth: getAuth(app), db: getFirestore(app), storage: getStorage(app) }
   return firebaseClient
 }
 
@@ -68,6 +71,7 @@ export function useFirebaseAuth() {
 
   const isConfigured = computed(() => getFirebaseClient(firebaseOptions) !== null)
 
+  // Wait for Firebase's persisted session lookup before protected routes decide where to navigate.
   async function initialize(): Promise<void> {
     if (!import.meta.client || ready.value) return
     const client = getFirebaseClient(firebaseOptions)
@@ -109,6 +113,7 @@ export function useFirebaseAuth() {
     user.value = toTidelogUser(credential.user)
   }
 
+  // Keep auth operations behind one composable so screens share the same signed-in user state.
   async function signIn(email: string, password: string): Promise<void> {
     const client = getFirebaseClient(firebaseOptions)
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
@@ -127,6 +132,14 @@ export function useFirebaseAuth() {
 }
 
 export function useFirebaseDatabase() {
+  return getFirebaseServices().db
+}
+
+export function useFirebaseStorage() {
+  return getFirebaseServices().storage
+}
+
+function getFirebaseServices() {
   const runtimeConfig = useRuntimeConfig().public
   const client = getFirebaseClient({
     apiKey: runtimeConfig.firebaseApiKey,
@@ -138,5 +151,5 @@ export function useFirebaseDatabase() {
     measurementId: runtimeConfig.firebaseMeasurementId
   })
   if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
-  return client.db
+  return client
 }
