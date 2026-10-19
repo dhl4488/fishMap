@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // The trip shape is shared with the data composable and the trip-entry dialog.
-import type { FishingTrip } from '../composables/useFishingData'
+import type { FishingCombo, FishingTrip } from '../composables/useFishingData'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
 
 // The composable loads data for the authenticated user and persists new trips.
-const { data, addTrip, loading: dataLoading, error: dataError } = useFishingData()
+const { data, addTrip, addCombo, loading: dataLoading, error: dataError } = useFishingData()
 // The profile name comes from the same shared Firebase session as the sidebar.
 const { name } = useUserProfile()
 
@@ -15,6 +15,9 @@ const tripModalOpen = ref(false)
 const toastMessage = ref('')
 const tripSaving = ref(false)
 const tripSaveError = ref<string | null>(null)
+const comboSaving = ref(false)
+const comboSaveError = ref<string | null>(null)
+const comboSaveSuccess = ref<string | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 // Derive dashboard figures from the shared data so they update after a successful save.
@@ -23,6 +26,13 @@ const totalCatches = computed(() => data.value.trips.reduce((total, trip) => tot
 const lastTripDate = computed(() => trips.value[0]?.date)
 // Use the first part of the account name for the greeting, with a safe fallback.
 const firstName = computed(() => name.value.trim().split(/\s+/)[0] || 'Angler')
+
+function openTripModal() {
+  tripSaveError.value = null
+  comboSaveError.value = null
+  comboSaveSuccess.value = null
+  tripModalOpen.value = true
+}
 
 // Format date-only strings at midday to avoid timezone conversion shifting the day.
 function dateParts(value: string) {
@@ -52,6 +62,20 @@ async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[]) {
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
 
+async function saveCombo(combo: Omit<FishingCombo, 'id'>) {
+  comboSaving.value = true
+  comboSaveError.value = null
+  comboSaveSuccess.value = null
+  try {
+    await addCombo(combo)
+    comboSaveSuccess.value = 'Combo preset saved and ready to use.'
+  } catch (error) {
+    comboSaveError.value = error instanceof Error ? error.message : 'Could not save this combo preset.'
+  } finally {
+    comboSaving.value = false
+  }
+}
+
 // Avoid leaving a pending timer behind if the user navigates away.
 onBeforeUnmount(() => clearTimeout(toastTimer))
 </script>
@@ -72,10 +96,10 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     <section class="page-heading">
       <div>
         <p class="eyebrow">YOUR FISHING JOURNAL</p>
-        <h1>Good morning, {{ firstName }} <span aria-hidden="true">☀</span></h1>
+        <h1>Hello, {{ firstName }} <span aria-hidden="true">🎣 </span></h1>
         <p class="subtitle">Every day on the water has a story. Here's yours so far.</p>
       </div>
-      <button class="primary-button" @click="tripModalOpen = true"><span class="plus">＋</span> Log a trip</button>
+      <button class="primary-button" @click="openTripModal"><span class="plus">＋</span> Log a trip</button>
     </section>
 
     <!-- Surface Firestore load errors without hiding the rest of the page. -->
@@ -145,7 +169,18 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
   </div>
 
   <!-- The dialog owns draft fields; this page handles persistence and user feedback. -->
-  <TripModal :model-value="tripModalOpen" :saving="tripSaving" :save-error="tripSaveError" @close="tripModalOpen = false" @save="saveTrip" />
+  <TripModal
+    :model-value="tripModalOpen"
+    :combos="data.combos"
+    :saving="tripSaving"
+    :save-error="tripSaveError"
+    :saving-combo="comboSaving"
+    :combo-save-error="comboSaveError"
+    :combo-save-success="comboSaveSuccess"
+    @close="tripModalOpen = false"
+    @save="saveTrip"
+    @save-combo="saveCombo"
+  />
   <!-- Announce save results accessibly and dismiss the message after a short delay. -->
   <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
 </template>

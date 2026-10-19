@@ -1,10 +1,12 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   setDoc,
   serverTimestamp,
+  updateDoc,
   type Firestore
 } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
@@ -16,12 +18,31 @@ export interface FishingCatch {
   quantity: number
 }
 
+export interface FishingLure {
+  name: string
+  notes: string
+}
+
+export interface FishingCombo {
+  id: string
+  name: string
+  lures: string[]
+  hook: string
+  line: string
+  weight: string
+}
+
 export interface FishingTrip {
   id: string
   date: string
   location: string
   catches: FishingCatch[]
   conditions: string
+  lures?: FishingLure[]
+  hook?: string
+  line?: string
+  weight?: string
+  waterDepth?: string
   notes: string
   photos?: string[]
 }
@@ -39,6 +60,7 @@ export interface FishingSpot {
 interface SavedData {
   trips: FishingTrip[]
   spots: FishingSpot[]
+  combos: FishingCombo[]
 }
 
 // Validate Firestore payloads at the boundary before exposing them to the UI.
@@ -46,6 +68,12 @@ function isFishingCatch(value: unknown): value is FishingCatch {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
   return typeof item.species === 'string' && typeof item.quantity === 'number' && Number.isFinite(item.quantity) && item.quantity >= 0
+}
+
+function isFishingLure(value: unknown): value is FishingLure {
+  if (typeof value !== 'object' || value === null) return false
+  const lure = value as Record<string, unknown>
+  return typeof lure.name === 'string' && typeof lure.notes === 'string'
 }
 
 function isFishingTrip(value: unknown): value is FishingTrip {
@@ -57,8 +85,25 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     Array.isArray(trip.catches) &&
     trip.catches.every(isFishingCatch) &&
     typeof trip.conditions === 'string' &&
+    (trip.lures === undefined || (Array.isArray(trip.lures) && trip.lures.every(isFishingLure))) &&
+    (trip.hook === undefined || typeof trip.hook === 'string') &&
+    (trip.line === undefined || typeof trip.line === 'string') &&
+    (trip.weight === undefined || typeof trip.weight === 'string') &&
+    (trip.waterDepth === undefined || typeof trip.waterDepth === 'string') &&
     typeof trip.notes === 'string' &&
     (trip.photos === undefined || (Array.isArray(trip.photos) && trip.photos.every(photo => typeof photo === 'string')))
+}
+
+function isFishingCombo(value: unknown): value is FishingCombo {
+  if (typeof value !== 'object' || value === null) return false
+  const combo = value as Record<string, unknown>
+  return typeof combo.id === 'string' &&
+    typeof combo.name === 'string' &&
+    Array.isArray(combo.lures) &&
+    combo.lures.every(lure => typeof lure === 'string') &&
+    typeof combo.hook === 'string' &&
+    typeof combo.line === 'string' &&
+    typeof combo.weight === 'string'
 }
 
 function isFishingSpot(value: unknown): value is FishingSpot {
@@ -73,15 +118,25 @@ function isFishingSpot(value: unknown): value is FishingSpot {
     typeof spot.notes === 'string'
 }
 
+function isMissingStorageObject(error: unknown) {
+  return typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'storage/object-not-found'
+}
+
 async function loadCollection<T>(
   db: Firestore,
   userId: string,
-  collectionName: 'trips' | 'spots',
+  collectionName: 'trips' | 'spots' | 'combos',
   isValid: (value: unknown) => value is T
 ): Promise<T[]> {
   const snapshot = await getDocs(collection(db, 'users', userId, collectionName))
   return snapshot.docs.map((entry) => {
     const value = { ...entry.data(), id: entry.id }
+    if (collectionName === 'trips' && typeof value.lures === 'string') {
+      value.lures = value.lures.trim() ? [{ name: value.lures, notes: '' }] : []
+    }
     if (!isValid(value)) throw new Error(`A saved ${collectionName} entry has an invalid format.`)
     return value
   })
@@ -89,7 +144,7 @@ async function loadCollection<T>(
 
 export function useFishingData() {
   const { user, initialize } = useFirebaseAuth()
-  const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [] }))
+  const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [], combos: [] }))
   const loading = useState('fishing-data-loading', () => false)
   const error = useState<string | null>('fishing-data-error', () => null)
   const db = import.meta.client ? useFirebaseDatabase() : null
@@ -97,7 +152,7 @@ export function useFishingData() {
 
   // Fetch only the signed-in account's subcollections and discard stale results after an account switch.
   async function loadUserData(account: TidelogUser | null) {
-    data.value = { trips: [], spots: [] }
+    data.value = { trips: [], spots: [], combos: [] }
     error.value = null
     if (!account || !db) {
       loading.value = false
@@ -106,15 +161,16 @@ export function useFishingData() {
 
     loading.value = true
     try {
-      const [trips, spots] = await Promise.all([
+      const [trips, spots, combos] = await Promise.all([
         loadCollection(db, account.uid, 'trips', isFishingTrip),
-        loadCollection(db, account.uid, 'spots', isFishingSpot)
+        loadCollection(db, account.uid, 'spots', isFishingSpot),
+        loadCollection(db, account.uid, 'combos', isFishingCombo)
       ])
-      if (user.value?.uid === account.uid) data.value = { trips, spots }
+      if (user.value?.uid === account.uid) data.value = { trips, spots, combos }
     } catch (caughtError) {
       console.error('Could not load this user’s fishing data from Firestore.', caughtError)
       if (user.value?.uid === account.uid) {
-        error.value = 'Could not load your trips and spots. Please try reloading the page.'
+        error.value = 'Could not load your trips, spots, and combo presets. Please try reloading the page.'
       }
     } finally {
       if (user.value?.uid === account.uid) loading.value = false
@@ -169,6 +225,42 @@ export function useFishingData() {
     }
   }
 
+  async function updateTrip(tripId: string, trip: Omit<FishingTrip, 'id' | 'photos'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before updating a fishing trip.')
+
+    await updateDoc(doc(db, 'users', account.uid, 'trips', tripId), trip)
+    if (user.value?.uid === account.uid) {
+      data.value.trips = data.value.trips.map(savedTrip =>
+        savedTrip.id === tripId ? { ...savedTrip, ...trip } : savedTrip
+      )
+    }
+  }
+
+  async function deleteTrip(tripId: string) {
+    const account = user.value
+    if (!account || !db || !storage) throw new Error('Sign in before deleting a fishing trip.')
+    const trip = data.value.trips.find(savedTrip => savedTrip.id === tripId)
+
+    await deleteDoc(doc(db, 'users', account.uid, 'trips', tripId))
+    if (user.value?.uid === account.uid) {
+      data.value.trips = data.value.trips.filter(savedTrip => savedTrip.id !== tripId)
+    }
+
+    if (trip?.photos?.length) {
+      const results = await Promise.allSettled(
+        trip.photos.map(photo => deleteObject(storageRef(storage, photo)))
+      )
+      const failedDeletions = results.filter(result =>
+        result.status === 'rejected' && !isMissingStorageObject(result.reason)
+      )
+      if (failedDeletions.length) {
+        console.error('Could not remove one or more photos after deleting a fishing trip.', failedDeletions)
+        throw new Error('Trip deleted, but some photos could not be removed.')
+      }
+    }
+  }
+
   async function addSpot(spot: Omit<FishingSpot, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before saving a fishing spot.')
@@ -179,5 +271,15 @@ export function useFishingData() {
     if (user.value?.uid === account.uid) data.value.spots.unshift({ ...spot, id: saved.id })
   }
 
-  return { data, loading, error, addTrip, addSpot }
+  async function addCombo(combo: Omit<FishingCombo, 'id'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before saving a fishing combo.')
+    const saved = await addDoc(collection(db, 'users', account.uid, 'combos'), {
+      ...combo,
+      createdAt: serverTimestamp()
+    })
+    if (user.value?.uid === account.uid) data.value.combos.unshift({ ...combo, id: saved.id })
+  }
+
+  return { data, loading, error, addTrip, updateTrip, deleteTrip, addSpot, addCombo }
 }
