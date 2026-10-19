@@ -27,6 +27,12 @@ const lastTripDate = computed(() => trips.value[0]?.date)
 // Use the first part of the account name for the greeting, with a safe fallback.
 const firstName = computed(() => name.value.trim().split(/\s+/)[0] || 'Angler')
 
+function catchSummary(trip: FishingTrip) {
+  const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
+  if (count === 0) return 'Skunked'
+  return `${count} ${count === 1 ? 'catch' : 'catches'}`
+}
+
 function openTripModal() {
   tripSaveError.value = null
   comboSaveError.value = null
@@ -117,7 +123,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       </article>
       <article class="stat-card">
         <div class="stat-top"><span>Favorite places</span><span class="stat-icon" aria-hidden="true">⌖</span></div>
-        <div class="stat-value"><strong>{{ data.spots.length }}</strong><span>spots saved</span></div>
+        <div class="stat-value"><strong>{{ data.spots.length }}</strong><span>spot{{ data.spots.length === 1 ? '' : 's' }} saved</span></div>
       </article>
       <article class="stat-card">
         <div class="stat-top"><span>Last cast</span><span class="stat-icon" aria-hidden="true">↗</span></div>
@@ -143,7 +149,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
                 <h3>{{ trip.location }}</h3>
                 <p>{{ trip.conditions || 'A day out on the water' }}</p>
               </div>
-              <span class="catch-count">{{ trip.catches.reduce((sum, item) => sum + item.quantity, 0) }} catches</span>
+              <span class="catch-count">{{ catchSummary(trip) }}</span>
             </NuxtLink>
           </div>
           <div v-else class="empty-state"><span>⌁</span>Your first fishing story starts here.</div>

@@ -28,6 +28,12 @@ const filteredTrips = computed(() => [...data.value.trips]
   })
   .sort((a, b) => b.date.localeCompare(a.date)))
 
+function catchSummary(trip: FishingTrip) {
+  const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
+  if (count === 0) return 'Skunked'
+  return `${count} ${count === 1 ? 'catch' : 'catches'}`
+}
+
 function openNewTrip() {
   editingTrip.value = null
   tripSaveError.value = null
@@ -157,7 +163,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
             <div><h2>{{ trip.location }}</h2><p>{{ dateParts(trip.date).full }} <span v-if="trip.conditions"> · {{ trip.conditions }}</span></p></div>
           </div>
           <div class="entry-actions">
-            <span class="entry-weather">{{ trip.catches.reduce((sum, item) => sum + item.quantity, 0) }} catches</span>
+            <span class="entry-weather">{{ catchSummary(trip) }}</span>
             <button class="entry-action-button" type="button" :disabled="deletingTripId !== null || tripSaving" @click="editTrip(trip)">Edit</button>
             <button
               class="entry-action-button entry-delete-button"

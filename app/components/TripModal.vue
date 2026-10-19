@@ -53,6 +53,9 @@ const notes = ref('')
 const selectedComboId = ref('')
 const comboName = ref('')
 const comboActionError = ref('')
+const hasRecordedCatches = computed(() => catches.value.some(({ species, customSpecies }) =>
+  (species === 'other' ? customSpecies : species).trim().length > 0
+))
 
 function newCatch(): CatchDraft {
   return { id: nextCatchId.value++, species: '', customSpecies: '', quantity: 1 }
@@ -195,6 +198,7 @@ function submitTrip() {
               <label>Your catches <span>(optional)</span></label>
               <button class="text-button" type="button" @click="addCatch">＋ Add a species</button>
             </div>
+            <p v-if="!hasRecordedCatches" class="photo-status">No catches? Better luck next time!</p>
             <div
               v-for="(catchItem, index) in catches"
               :key="catchItem.id"
@@ -215,7 +219,6 @@ function submitTrip() {
               >
               <input v-model.number="catchItem.quantity" :aria-label="`Quantity for catch ${index + 1}`" type="number" min="1" max="999" required>
               <button
-                v-if="catches.length > 1"
                 class="remove-catch-button"
                 type="button"
                 :aria-label="`Remove catch ${index + 1}`"
