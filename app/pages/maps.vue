@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { FishingSpot } from '../composables/useFishingData'
+import { Geolocation } from '@capacitor/geolocation'
 
 useHead({ title: 'Fishing spots · Tidelog', meta: [{ name: 'description', content: 'Map, save, and revisit your favorite fishing spots.' }] })
 
-const { data, addSpot, loading: dataLoading, error: dataError } = useFishingData()
+const { data, addSpot, deleteSpot, loading: dataLoading, error: dataError } = useFishingData()
+const { successFeedback } = useNativeFeatures()
 const selectedSpotId = ref('')
 const spotModalOpen = ref(false)
 const pickMode = ref(false)
@@ -15,6 +17,10 @@ const spotLatitude = ref('')
 const spotLongitude = ref('')
 const spotNotes = ref('')
 const toastMessage = ref('')
+const spotActionError = ref('')
+const locationError = ref('')
+const locating = ref(false)
+const deletingSpotId = ref<string | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const selectedSpot = computed(() => data.value.spots.find(spot => spot.id === selectedSpotId.value) ?? data.value.spots[0])
@@ -46,6 +52,34 @@ function startSpotPlacement() {
   pickMode.value = true
 }
 
+async function useCurrentLocation() {
+  if (locating.value) return
+  locating.value = true
+  locationError.value = ''
+  try {
+    const position = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 10000
+    })
+    pickedLocation.value = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude
+    }
+    spotLatitude.value = position.coords.latitude.toFixed(6)
+    spotLongitude.value = position.coords.longitude.toFixed(6)
+    pickMode.value = false
+    spotModalOpen.value = true
+  } catch (error) {
+    console.error('Could not read the device location for a fishing spot.', error)
+    locationError.value = error instanceof Error
+      ? `Could not get your location: ${error.message}`
+      : 'Could not get your location. Check location permission and try again.'
+  } finally {
+    locating.value = false
+  }
+}
+
 function handleMapPick(coordinates: { latitude: number; longitude: number }) {
   pickedLocation.value = coordinates
   spotLatitude.value = coordinates.latitude.toFixed(6)
@@ -62,12 +96,31 @@ function cancelSpotModal() {
 async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
   try {
     await addSpot(spot)
+    void successFeedback()
     selectedSpotId.value = ''
     spotModalOpen.value = false
     pickedLocation.value = null
     showToast('Favorite spot saved to your map.')
   } catch (error) {
     showToast(error instanceof Error ? error.message : 'Could not save this spot.')
+  }
+}
+
+async function removeSpot(spot: FishingSpot) {
+  if (!window.confirm(`Delete the favorite spot "${spot.name}"? This cannot be undone.`)) return
+
+  deletingSpotId.value = spot.id
+  spotActionError.value = ''
+  try {
+    await deleteSpot(spot.id)
+    if (selectedSpotId.value === spot.id) {
+      selectedSpotId.value = data.value.spots[0]?.id ?? ''
+    }
+    showToast('Favorite spot deleted.')
+  } catch (error) {
+    spotActionError.value = error instanceof Error ? error.message : 'Could not delete this spot.'
+  } finally {
+    deletingSpotId.value = null
   }
 }
 
@@ -94,6 +147,13 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     </section>
 
     <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
+    <div v-if="locationError" class="auth-message auth-error" role="alert">{{ locationError }}</div>
+    <div class="location-action">
+      <button class="secondary-button" type="button" :disabled="locating" @click="useCurrentLocation">
+        {{ locating ? 'Finding your location…' : '◎ Use my current location' }}
+      </button>
+      <span>Your location is only accessed when you tap this button.</span>
+    </div>
 
     <div class="map-layout">
       <section class="map-panel" aria-label="Map of selected fishing spot">
@@ -125,17 +185,26 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 
         <section class="panel spot-browser">
           <div class="section-heading"><h2>Your saved spots</h2><span style="color:#9aa59e;font-size:10px">{{ data.spots.length }}</span></div>
-          <button
-            v-for="spot in data.spots"
-            :key="spot.id"
-            class="spot-select"
-            :class="{ 'spot-select-active': selectedSpot?.id === spot.id }"
-            :aria-pressed="selectedSpot?.id === spot.id"
-            @click="selectedSpotId = spot.id"
-          >
-            <span class="spot-pin" aria-hidden="true">⌖</span>
-            <span class="spot-select-copy"><strong>{{ spot.name }}</strong><span>{{ spot.water }} · {{ spot.kind.split(' · ').at(-1) }}</span></span>
-          </button>
+          <p v-if="spotActionError" class="auth-message auth-error" role="alert">{{ spotActionError }}</p>
+          <div v-for="spot in data.spots" :key="spot.id" class="spot-select-row">
+            <button
+              class="spot-select"
+              :class="{ 'spot-select-active': selectedSpot?.id === spot.id }"
+              :aria-pressed="selectedSpot?.id === spot.id"
+              @click="selectedSpotId = spot.id"
+            >
+              <span class="spot-pin" aria-hidden="true">⌖</span>
+              <span class="spot-select-copy"><strong>{{ spot.name }}</strong><span>{{ spot.water }} · {{ spot.kind.split(' · ').at(-1) }}</span></span>
+            </button>
+            <button
+              class="spot-delete-button"
+              type="button"
+              :disabled="deletingSpotId !== null"
+              :aria-label="`Delete favorite spot ${spot.name}`"
+              :title="deletingSpotId === spot.id ? 'Deleting spot…' : 'Delete favorite spot'"
+              @click="removeSpot(spot)"
+            >{{ deletingSpotId === spot.id ? '…' : '×' }}</button>
+          </div>
           <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:10px">Your saved places will show up here.</div>
           <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:10px">Loading your saved spots…</div>
           <button class="text-button" style="margin-top:8px" @click="startSpotPlacement">＋ Add another spot</button>
@@ -174,3 +243,18 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
   </Teleport>
   <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
 </template>
+
+<style scoped>
+.location-action { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: -9px 0 15px; }
+.location-action > span { color: #89958e; font-size: 10px; }
+.location-action .secondary-button { min-height: 38px; }
+.spot-select-row { align-items: center; display: flex; gap: 4px; }
+.spot-select-row .spot-select { min-width: 0; }
+.spot-delete-button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 7px; color: #985b45; display: flex; flex: 0 0 34px; font-size: 17px; height: 34px; justify-content: center; }
+.spot-delete-button:hover:not(:disabled) { background: #fbf0ec; border-color: #f0d8ce; }
+.spot-delete-button:disabled { cursor: wait; opacity: .55; }
+.spot-browser .auth-message { margin-bottom: 8px; }
+@media (max-width: 500px) {
+  .spot-delete-button { flex-basis: 44px; height: 44px; }
+}
+</style>

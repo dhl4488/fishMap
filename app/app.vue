@@ -3,6 +3,8 @@ const route = useRoute()
 const { name } = useUserProfile()
 const { signOutUser } = useFirebaseAuth()
 
+useHead({ link: [{ rel: 'manifest', href: '/manifest.webmanifest' }] })
+
 async function logout() {
   await signOutUser()
   await navigateTo('/login')
@@ -11,6 +13,7 @@ async function logout() {
 const navigation = [
   { label: 'Overview', to: '/', icon: '◫' },
   { label: 'My diary', to: '/logs', icon: '▤' },
+  { label: 'Tacklebox', to: '/tacklebox', icon: '▣' },
   { label: 'Fishing spots', to: '/maps', icon: '⌖' }
 ]
 </script>
@@ -127,8 +130,7 @@ a { color: inherit; text-decoration: none; }
 .breadcrumb strong { color: #44534b; font-weight: 600; }
 .topbar-right { align-items: center; display: flex; gap: 18px; }
 .today-label { color: #7f8b84; font-size: 11px; }
-.icon-button { align-items: center; background: white; border: 1px solid #e8ece7; border-radius: 9px; color: #64726a; display: flex; height: 35px; justify-content: center; position: relative; width: 35px; }
-.icon-button .notification-dot { background: #d68d6f; border: 2px solid white; border-radius: 50%; height: 8px; position: absolute; right: 7px; top: 6px; width: 8px; }
+
 .page-heading { align-items: flex-end; display: flex; justify-content: space-between; margin-bottom: 24px; }
 .eyebrow { color: #71917d; font-size: 10px; font-weight: 700; letter-spacing: 1.25px; margin: 0 0 9px; text-transform: uppercase; }
 h1,h2,h3,p { margin-top: 0; }

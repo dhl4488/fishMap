@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // The trip shape is shared with the data composable and the trip-entry dialog.
-import type { FishingCombo, FishingTrip } from '../composables/useFishingData'
+import type { FishingCombo, FishingLure, FishingTrip } from '../composables/useFishingData'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
 
 // The composable loads data for the authenticated user and persists new trips.
-const { data, addTrip, addCombo, loading: dataLoading, error: dataError } = useFishingData()
+const { data, addTrip, addCombo, isOnline, loading: dataLoading, error: dataError } = useFishingData()
+const { successFeedback } = useNativeFeatures()
 // The profile name comes from the same shared Firebase session as the sidebar.
 const { name } = useUserProfile()
 
@@ -22,6 +23,21 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 // Derive dashboard figures from the shared data so they update after a successful save.
 const trips = computed(() => [...data.value.trips].sort((a, b) => b.date.localeCompare(a.date)))
+const previousLures = computed(() => {
+  const lures = new Map<string, FishingLure>()
+  for (const trip of data.value.trips) {
+    for (const lure of trip.lures ?? []) {
+      const key = lure.name.trim().toLocaleLowerCase()
+      if (key && !lures.has(key)) lures.set(key, lure)
+    }
+    for (const item of trip.catches) {
+      const name = item.lure?.trim()
+      const key = name?.toLocaleLowerCase()
+      if (name && key && !lures.has(key)) lures.set(key, { name, notes: '' })
+    }
+  }
+  return [...lures.values()]
+})
 const totalCatches = computed(() => data.value.trips.reduce((total, trip) => total + trip.catches.reduce((sum, item) => sum + item.quantity, 0), 0))
 const lastTripDate = computed(() => trips.value[0]?.date)
 // Use the first part of the account name for the greeting, with a safe fallback.
@@ -50,13 +66,16 @@ function dateParts(value: string) {
 }
 
 // Save the dialog's draft through the user-scoped data composable.
-async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[]) {
+async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhotos: Array<File | null>) {
   tripSaving.value = true
   tripSaveError.value = null
   try {
-    await addTrip(trip, photos)
+    const queued = await addTrip(trip, photos, catchPhotos)
     tripModalOpen.value = false
-    toastMessage.value = 'Trip added to your diary.'
+    toastMessage.value = queued
+      ? 'Trip saved on this device and will sync when connected.'
+      : 'Trip added to your diary.'
+    void successFeedback()
   } catch (error) {
     // Keep the dialog open if a photo upload or trip write fails, preserving the user's draft.
     tripSaveError.value = error instanceof Error ? error.message : 'Could not save this trip.'
@@ -94,7 +113,6 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       <div class="breadcrumb">Your space <span aria-hidden="true">/</span> <strong>Overview</strong></div>
       <div class="topbar-right">
         <span class="today-label">{{ new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()) }}</span>
-        <button class="icon-button" aria-label="Notifications"><span aria-hidden="true">♧</span><i class="notification-dot" /></button>
       </div>
     </header>
 
@@ -178,8 +196,15 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
   <TripModal
     :model-value="tripModalOpen"
     :combos="data.combos"
+    :tacklebox-lures="data.tackleboxLures"
+    :tacklebox-rods="data.tackleboxRods"
+    :previous-lures="previousLures"
+    :spots="data.spots"
+    :spots-loading="dataLoading"
+    :lures-loading="dataLoading"
     :saving="tripSaving"
     :save-error="tripSaveError"
+    :offline-mode="!isOnline"
     :saving-combo="comboSaving"
     :combo-save-error="comboSaveError"
     :combo-save-success="comboSaveSuccess"
