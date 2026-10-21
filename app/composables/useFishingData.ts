@@ -53,6 +53,17 @@ export interface TackleboxRod {
   notes: string
 }
 
+export interface TackleboxReel {
+  id: string
+  name: string
+  brand: string
+  type: string
+  size: string
+  gearRatio: string
+  retrieve: string
+  notes: string
+}
+
 export interface FishingCombo {
   id: string
   name: string
@@ -95,6 +106,7 @@ interface SavedData {
   combos: FishingCombo[]
   tackleboxLures: TackleboxLure[]
   tackleboxRods: TackleboxRod[]
+  tackleboxReels: TackleboxReel[]
   hiddenTackleboxLures: string[]
 }
 
@@ -145,6 +157,19 @@ function isTackleboxRod(value: unknown): value is TackleboxRod {
     typeof rod.power === 'string' &&
     typeof rod.action === 'string' &&
     typeof rod.notes === 'string'
+}
+
+function isTackleboxReel(value: unknown): value is TackleboxReel {
+  if (typeof value !== 'object' || value === null) return false
+  const reel = value as Record<string, unknown>
+  return typeof reel.id === 'string' &&
+    typeof reel.name === 'string' &&
+    typeof reel.brand === 'string' &&
+    typeof reel.type === 'string' &&
+    typeof reel.size === 'string' &&
+    typeof reel.gearRatio === 'string' &&
+    typeof reel.retrieve === 'string' &&
+    typeof reel.notes === 'string'
 }
 
 function isFishingTrip(value: unknown): value is FishingTrip {
@@ -201,7 +226,7 @@ function isMissingStorageObject(error: unknown) {
 async function loadCollection<T>(
   db: Firestore,
   userId: string,
-  collectionName: 'trips' | 'spots' | 'combos' | 'tackleboxLures' | 'tackleboxRods',
+  collectionName: 'trips' | 'spots' | 'combos' | 'tackleboxLures' | 'tackleboxRods' | 'tackleboxReels',
   isValid: (value: unknown) => value is T
 ): Promise<T[]> {
   const snapshot = await getDocs(collection(db, 'users', userId, collectionName))
@@ -310,7 +335,7 @@ function isConnectionError(error: unknown) {
 
 export function useFishingData() {
   const { user, initialize } = useFirebaseAuth()
-  const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], hiddenTackleboxLures: [] }))
+  const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], tackleboxReels: [], hiddenTackleboxLures: [] }))
   const loading = useState('fishing-data-loading', () => false)
   const error = useState<string | null>('fishing-data-error', () => null)
   const pendingTripIds = useState<string[]>('fishing-pending-trip-ids', () => [])
@@ -366,7 +391,7 @@ export function useFishingData() {
 
   // Fetch only the signed-in account's subcollections and discard stale results after an account switch.
   async function loadUserData(account: TidelogUser | null) {
-    data.value = { trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], hiddenTackleboxLures: [] }
+    data.value = { trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], tackleboxReels: [], hiddenTackleboxLures: [] }
     pendingTripIds.value = []
     error.value = null
     if (!account || !db) {
@@ -387,12 +412,13 @@ export function useFishingData() {
       offlineSyncError.value = 'Could not access locally saved trips on this device.'
     }
     try {
-      const [trips, spots, combos, tackleboxLures, tackleboxRods, hiddenTackleboxLures] = await Promise.all([
+      const [trips, spots, combos, tackleboxLures, tackleboxRods, tackleboxReels, hiddenTackleboxLures] = await Promise.all([
         loadCollection(db, account.uid, 'trips', isFishingTrip),
         loadCollection(db, account.uid, 'spots', isFishingSpot),
         loadCollection(db, account.uid, 'combos', isFishingCombo),
         loadCollection(db, account.uid, 'tackleboxLures', isTackleboxLure),
         loadCollection(db, account.uid, 'tackleboxRods', isTackleboxRod),
+        loadCollection(db, account.uid, 'tackleboxReels', isTackleboxReel),
         loadHiddenTackleboxLures(db, account.uid)
       ])
       if (user.value?.uid === account.uid) {
@@ -403,6 +429,7 @@ export function useFishingData() {
           combos,
           tackleboxLures,
           tackleboxRods,
+          tackleboxReels,
           hiddenTackleboxLures
         }
       }
@@ -678,6 +705,36 @@ export function useFishingData() {
     }
   }
 
+  async function addTackleboxReel(reel: Omit<TackleboxReel, 'id'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before adding a reel to your tacklebox.')
+    const saved = await addDoc(collection(db, 'users', account.uid, 'tackleboxReels'), {
+      ...reel,
+      createdAt: serverTimestamp()
+    })
+    if (user.value?.uid === account.uid) data.value.tackleboxReels.unshift({ ...reel, id: saved.id })
+  }
+
+  async function updateTackleboxReel(reelId: string, reel: Omit<TackleboxReel, 'id'>) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before updating a tacklebox reel.')
+    await updateDoc(doc(db, 'users', account.uid, 'tackleboxReels', reelId), reel)
+    if (user.value?.uid === account.uid) {
+      data.value.tackleboxReels = data.value.tackleboxReels.map(savedReel =>
+        savedReel.id === reelId ? { ...savedReel, ...reel } : savedReel
+      )
+    }
+  }
+
+  async function deleteTackleboxReel(reelId: string) {
+    const account = user.value
+    if (!account || !db) throw new Error('Sign in before deleting a tacklebox reel.')
+    await deleteDoc(doc(db, 'users', account.uid, 'tackleboxReels', reelId))
+    if (user.value?.uid === account.uid) {
+      data.value.tackleboxReels = data.value.tackleboxReels.filter(reel => reel.id !== reelId)
+    }
+  }
+
   async function addCombo(combo: Omit<FishingCombo, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before saving a fishing combo.')
@@ -709,6 +766,9 @@ export function useFishingData() {
     addTackleboxRod,
     updateTackleboxRod,
     deleteTackleboxRod,
+    addTackleboxReel,
+    updateTackleboxReel,
+    deleteTackleboxReel,
     addCombo
   }
 }

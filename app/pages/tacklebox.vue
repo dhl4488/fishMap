@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TackleboxLure, TackleboxRod } from '../composables/useFishingData'
+import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
 
 useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lure collection and see what you have caught with each lure.' }] })
 
@@ -12,7 +12,10 @@ const {
   removeTackleboxLure,
   addTackleboxRod,
   updateTackleboxRod,
-  deleteTackleboxRod
+  deleteTackleboxRod,
+  addTackleboxReel,
+  updateTackleboxReel,
+  deleteTackleboxReel
 } = useFishingData()
 
 interface LureCatchSummary {
@@ -48,6 +51,7 @@ const lureTypes = [
 
 const lureModalOpen = ref(false)
 const editingLure = ref<TackleboxLure | null>(null)
+const lureFormIsEdit = ref(false)
 const savingLure = ref(false)
 const deletingLureKey = ref<string | null>(null)
 const actionError = ref('')
@@ -70,8 +74,35 @@ const rodLength = ref('')
 const rodPower = ref('')
 const rodAction = ref('')
 const rodNotes = ref('')
+const reelModalOpen = ref(false)
+const editingReel = ref<TackleboxReel | null>(null)
+const savingReel = ref(false)
+const deletingReelId = ref<string | null>(null)
+const reelActionError = ref('')
+const reelName = ref('')
+const reelBrand = ref('')
+const reelType = ref('')
+const reelSize = ref('')
+const reelGearRatio = ref('')
+const reelRetrieve = ref('')
+const reelNotes = ref('')
 
-const rodTypes = ['Spinning', 'Casting', 'Fly', 'Telescopic', 'Ice fishing', 'Other']
+const rodTypes = [
+  { value: 'Spinning', label: 'Spinning rod' },
+  { value: 'Casting', label: 'Casting rod' },
+  { value: 'Fly', label: 'Fly rod' },
+  { value: 'Telescopic', label: 'Telescopic rod' },
+  { value: 'Ice fishing', label: 'Ice fishing rod' },
+  { value: 'Other', label: 'Other rod' }
+]
+const reelTypes = [
+  { value: 'Spinning', label: 'Spinning reel' },
+  { value: 'Baitcasting', label: 'Baitcasting reel' },
+  { value: 'Fly', label: 'Fly reel' },
+  { value: 'Spincast', label: 'Spincast reel' },
+  { value: 'Conventional', label: 'Conventional reel' },
+  { value: 'Other', label: 'Other reel' }
+]
 
 function lureKey(name: string, inventoryLureId?: string) {
   if (inventoryLureId) return `id:${inventoryLureId}`
@@ -145,9 +176,10 @@ const lureSummaries = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
-function openLureForm(lure: TackleboxLure | null = null) {
+function openLureForm(lure: TackleboxLure | null = null, name = '') {
   editingLure.value = lure
-  lureName.value = lure?.name ?? ''
+  lureFormIsEdit.value = lure !== null || name !== ''
+  lureName.value = lure?.name ?? name
   lureBrand.value = lure?.brand ?? ''
   lureType.value = lure?.type ?? ''
   lureColor.value = lure?.color ?? ''
@@ -162,6 +194,7 @@ function closeLureForm() {
   if (savingLure.value) return
   lureModalOpen.value = false
   editingLure.value = null
+  lureFormIsEdit.value = false
 }
 
 async function saveLure() {
@@ -187,10 +220,11 @@ async function saveLure() {
       successMessage.value = 'Lure details updated.'
     } else {
       await addTackleboxLure(lure)
-      successMessage.value = 'Lure added to your tacklebox.'
+      successMessage.value = lureFormIsEdit.value ? 'Lure details saved to your tacklebox.' : 'Lure added to your tacklebox.'
     }
     lureModalOpen.value = false
     editingLure.value = null
+    lureFormIsEdit.value = false
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : 'Could not save this lure.'
   } finally {
@@ -286,6 +320,74 @@ async function removeRod(rod: TackleboxRod) {
     deletingRodId.value = null
   }
 }
+
+function openReelForm(reel: TackleboxReel | null = null) {
+  editingReel.value = reel
+  reelName.value = reel?.name ?? ''
+  reelBrand.value = reel?.brand ?? ''
+  reelType.value = reel?.type ?? ''
+  reelSize.value = reel?.size ?? ''
+  reelGearRatio.value = reel?.gearRatio ?? ''
+  reelRetrieve.value = reel?.retrieve ?? ''
+  reelNotes.value = reel?.notes ?? ''
+  reelActionError.value = ''
+  reelModalOpen.value = true
+}
+
+function closeReelForm() {
+  if (savingReel.value) return
+  reelModalOpen.value = false
+  editingReel.value = null
+}
+
+async function saveReel() {
+  const name = reelName.value.trim()
+  if (!name) {
+    reelActionError.value = 'Enter a reel name.'
+    return
+  }
+  savingReel.value = true
+  reelActionError.value = ''
+  const reel = {
+    name,
+    brand: reelBrand.value.trim(),
+    type: reelType.value.trim(),
+    size: reelSize.value.trim(),
+    gearRatio: reelGearRatio.value.trim(),
+    retrieve: reelRetrieve.value.trim(),
+    notes: reelNotes.value.trim()
+  }
+  try {
+    if (editingReel.value) {
+      await updateTackleboxReel(editingReel.value.id, reel)
+      successMessage.value = 'Reel details updated.'
+    } else {
+      await addTackleboxReel(reel)
+      successMessage.value = 'Reel added to your tacklebox.'
+    }
+    reelModalOpen.value = false
+    editingReel.value = null
+  } catch (error) {
+    reelActionError.value = error instanceof Error ? error.message : 'Could not save this reel.'
+  } finally {
+    savingReel.value = false
+  }
+}
+
+async function removeReel(reel: TackleboxReel) {
+  if (!window.confirm(`Remove "${reel.name}" from your tacklebox?`)) return
+
+  deletingReelId.value = reel.id
+  reelActionError.value = ''
+  try {
+    await deleteTackleboxReel(reel.id)
+    successMessage.value = 'Reel removed from your tacklebox.'
+  } catch (error) {
+    reelActionError.value = error instanceof Error ? error.message : 'Could not remove this reel.'
+  } finally {
+    deletingReelId.value = null
+  }
+}
 </script>
 
 <template>
@@ -299,7 +401,7 @@ async function removeRod(rod: TackleboxRod) {
       <div>
         <p class="eyebrow">WHAT'S BEEN WORKING</p>
         <h1>Your tacklebox</h1>
-        <p class="subtitle">Keep track of your lures and rods, and see what you've caught with them.</p>
+        <p class="subtitle">Keep track of your lures, rods, and reels, and see what you've caught with them.</p>
       </div>
       <button class="primary-button" type="button" @click="openLureForm()"><span class="plus">＋</span> Add a lure</button>
     </section>
@@ -308,6 +410,7 @@ async function removeRod(rod: TackleboxRod) {
     <div v-if="actionError && !lureModalOpen" class="auth-message auth-error" role="alert">{{ actionError }}</div>
     <div v-if="successMessage && !lureModalOpen" class="auth-message auth-success" role="status">{{ successMessage }}</div>
     <div v-if="rodActionError && !rodModalOpen" class="auth-message auth-error" role="alert">{{ rodActionError }}</div>
+    <div v-if="reelActionError && !reelModalOpen" class="auth-message auth-error" role="alert">{{ reelActionError }}</div>
 
     <section class="rod-inventory">
       <div class="section-heading">
@@ -319,7 +422,7 @@ async function removeRod(rod: TackleboxRod) {
           <div class="rod-card-icon" aria-hidden="true">🎣</div>
           <div class="rod-card-copy">
             <h3>{{ rod.name }}</h3>
-            <p>{{ [rod.brand, rod.type, rod.length, rod.power, rod.action].filter(Boolean).join(' · ') || 'Rod details not added' }}</p>
+            <p>{{ [rod.brand, rod.type && `${rod.type} rod`, rod.length, rod.power, rod.action].filter(Boolean).join(' · ') || 'Rod details not added' }}</p>
             <p v-if="rod.notes" class="rod-note">{{ rod.notes }}</p>
           </div>
           <div class="rod-card-actions">
@@ -337,6 +440,34 @@ async function removeRod(rod: TackleboxRod) {
       <p v-else class="rod-empty">No saved rods yet. You can add one here or enter a rod name directly when logging a trip.</p>
     </section>
 
+    <section class="reel-inventory">
+      <div class="section-heading">
+        <div><h2>Your reels</h2><p>Keep track of the reels in your setup.</p></div>
+        <button class="secondary-button" type="button" @click="openReelForm()">＋ Add a reel</button>
+      </div>
+      <div v-if="data.tackleboxReels.length" class="reel-grid">
+        <article v-for="reel in data.tackleboxReels" :key="reel.id" class="panel reel-card">
+          <div class="reel-card-icon" aria-hidden="true">◉</div>
+          <div class="reel-card-copy">
+            <h3>{{ reel.name }}</h3>
+            <p>{{ [reel.brand, reel.type && `${reel.type} reel`, reel.size && `Size ${reel.size}`, reel.gearRatio && `${reel.gearRatio}:1`, reel.retrieve].filter(Boolean).join(' · ') || 'Reel details not added' }}</p>
+            <p v-if="reel.notes" class="reel-note">{{ reel.notes }}</p>
+          </div>
+          <div class="reel-card-actions">
+            <button class="lure-action" type="button" @click="openReelForm(reel)">Edit</button>
+            <button
+              class="lure-action lure-remove"
+              type="button"
+              :disabled="deletingReelId !== null"
+              :aria-label="`Remove ${reel.name} from tacklebox`"
+              @click="removeReel(reel)"
+            >{{ deletingReelId === reel.id ? '…' : '×' }}</button>
+          </div>
+        </article>
+      </div>
+      <p v-else class="rod-empty">No saved reels yet. Add a reel to keep its specs handy.</p>
+    </section>
+
     <div v-if="loading" class="panel empty-state empty-panel">Loading your tacklebox…</div>
     <div v-else-if="lureSummaries.length" class="tackle-grid">
       <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
@@ -347,7 +478,7 @@ async function removeRod(rod: TackleboxRod) {
             <p>Used on {{ lure.tripCount }} {{ lure.tripCount === 1 ? 'trip' : 'trips' }}</p>
           </div>
           <div class="lure-actions">
-            <button v-if="lure.inventoryLure" class="lure-action" type="button" @click="openLureForm(lure.inventoryLure)">Edit</button>
+            <button class="lure-action" type="button" @click="openLureForm(lure.inventoryLure ?? null, lure.name)">Edit</button>
             <button
               class="lure-action lure-remove"
               type="button"
@@ -405,8 +536,8 @@ async function removeRod(rod: TackleboxRod) {
       <form class="modal lure-modal" @submit.prevent="saveLure">
         <div class="modal-header">
           <div>
-            <p class="eyebrow">{{ editingLure ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
-            <h2>{{ editingLure ? 'Edit lure' : 'Add a lure' }}</h2>
+            <p class="eyebrow">{{ lureFormIsEdit ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
+            <h2>{{ lureFormIsEdit ? 'Edit lure' : 'Add a lure' }}</h2>
             <p>Save details once, then select this lure when logging a trip.</p>
           </div>
           <button class="modal-close" type="button" aria-label="Close dialog" :disabled="savingLure" @click="closeLureForm">×</button>
@@ -443,7 +574,7 @@ async function removeRod(rod: TackleboxRod) {
         </div>
         <div class="form-actions">
           <button class="cancel-button" type="button" :disabled="savingLure" @click="closeLureForm">Cancel</button>
-          <button class="primary-button" type="submit" :disabled="savingLure">{{ savingLure ? 'Saving…' : editingLure ? 'Save changes' : 'Add to tacklebox' }}</button>
+          <button class="primary-button" type="submit" :disabled="savingLure">{{ savingLure ? 'Saving…' : lureFormIsEdit ? 'Save changes' : 'Add to tacklebox' }}</button>
         </div>
       </form>
     </div>
@@ -473,7 +604,7 @@ async function removeRod(rod: TackleboxRod) {
             <label for="tackle-rod-type">Rod type</label>
             <select id="tackle-rod-type" v-model="rodType">
               <option value="">Choose a type</option>
-              <option v-for="type in rodTypes" :key="type" :value="type">{{ type }}</option>
+              <option v-for="type in rodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
             </select>
           </div>
           <div class="form-field">
@@ -500,22 +631,83 @@ async function removeRod(rod: TackleboxRod) {
       </form>
     </div>
   </Teleport>
+  <Teleport to="body">
+    <div v-if="reelModalOpen" class="modal-backdrop" @click.self="closeReelForm">
+      <form class="modal reel-modal" @submit.prevent="saveReel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">{{ editingReel ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
+            <h2>{{ editingReel ? 'Edit reel' : 'Add a reel' }}</h2>
+            <p>Save your reel specs for easy reference.</p>
+          </div>
+          <button class="modal-close" type="button" aria-label="Close dialog" :disabled="savingReel" @click="closeReelForm">×</button>
+        </div>
+        <p v-if="reelActionError" class="trip-save-error" role="alert">{{ reelActionError }}</p>
+        <div class="form-grid">
+          <div class="form-field form-field-full">
+            <label for="tackle-reel-name">Reel name</label>
+            <input id="tackle-reel-name" v-model="reelName" placeholder="e.g. Stradic 2500" required maxlength="100">
+          </div>
+          <div class="form-field">
+            <label for="tackle-reel-brand">Brand</label>
+            <input id="tackle-reel-brand" v-model="reelBrand" placeholder="e.g. Shimano" maxlength="60">
+          </div>
+          <div class="form-field">
+            <label for="tackle-reel-type">Reel type</label>
+            <select id="tackle-reel-type" v-model="reelType">
+              <option value="">Choose a type</option>
+              <option v-for="type in reelTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="tackle-reel-size">Size</label>
+            <input id="tackle-reel-size" v-model="reelSize" placeholder="e.g. 2500" maxlength="30">
+          </div>
+          <div class="form-field">
+            <label for="tackle-reel-gear-ratio">Gear ratio</label>
+            <input id="tackle-reel-gear-ratio" v-model="reelGearRatio" placeholder="e.g. 6.2" maxlength="20">
+          </div>
+          <div class="form-field form-field-full">
+            <label for="tackle-reel-retrieve">Retrieve</label>
+            <input id="tackle-reel-retrieve" v-model="reelRetrieve" placeholder="e.g. Left-hand, 35 in per turn" maxlength="50">
+          </div>
+          <div class="form-field form-field-full">
+            <label for="tackle-reel-notes">Notes <span style="color:#9aa59e;font-weight:400">(optional)</span></label>
+            <textarea id="tackle-reel-notes" v-model="reelNotes" placeholder="Line capacity, drag, maintenance, or other reminders…" maxlength="500" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="cancel-button" type="button" :disabled="savingReel" @click="closeReelForm">Cancel</button>
+          <button class="primary-button" type="submit" :disabled="savingReel">{{ savingReel ? 'Saving…' : editingReel ? 'Save changes' : 'Add to tacklebox' }}</button>
+        </div>
+      </form>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .tackle-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rod-inventory { margin: 0 0 26px; }
-.rod-inventory .section-heading { align-items: center; }
-.rod-inventory .section-heading h2 { font: 700 15px Manrope, sans-serif; margin: 0 0 4px; }
-.rod-inventory .section-heading p { color: #89958e; font-size: 10px; margin: 0; }
+.reel-inventory { margin: 0 0 26px; }
+.rod-inventory .section-heading,.reel-inventory .section-heading { align-items: center; }
+.rod-inventory .section-heading h2,.reel-inventory .section-heading h2 { font: 700 15px Manrope, sans-serif; margin: 0 0 4px; }
+.rod-inventory .section-heading p,.reel-inventory .section-heading p { color: #89958e; font-size: 10px; margin: 0; }
 .rod-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.reel-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rod-card { align-items: center; display: flex; gap: 11px; min-width: 0; padding: 13px; }
+.reel-card { align-items: center; display: flex; gap: 11px; min-width: 0; padding: 13px; }
 .rod-card-icon { align-items: center; background: #eaf2ec; border-radius: 9px; display: flex; flex: 0 0 38px; height: 38px; justify-content: center; }
+.reel-card-icon { align-items: center; background: #eaf2ec; border-radius: 9px; display: flex; flex: 0 0 38px; height: 38px; justify-content: center; }
 .rod-card-copy { min-width: 0; }
+.reel-card-copy { min-width: 0; }
 .rod-card-copy h3 { color: #34433a; font-size: 11px; margin: 0 0 4px; overflow-wrap: anywhere; }
+.reel-card-copy h3 { color: #34433a; font-size: 11px; margin: 0 0 4px; overflow-wrap: anywhere; }
 .rod-card-copy p { color: #819087; font-size: 9px; line-height: 1.45; margin: 0; }
+.reel-card-copy p { color: #819087; font-size: 9px; line-height: 1.45; margin: 0; }
 .rod-card-copy .rod-note { margin-top: 4px; }
+.reel-card-copy .reel-note { margin-top: 4px; }
 .rod-card-actions { display: flex; gap: 5px; margin-left: auto; }
+.reel-card-actions { display: flex; gap: 5px; margin-left: auto; }
 .rod-empty { background: #f5f7f4; border-radius: 8px; color: #89958e; font-size: 10px; margin: 0; padding: 12px 14px; }
 .lure-card { min-width: 0; overflow: hidden; padding: 17px; }
 .lure-card-header { align-items: center; display: flex; gap: 11px; }
@@ -552,15 +744,15 @@ async function removeRod(rod: TackleboxRod) {
 .empty-panel { gap: 9px; padding: 36px 20px; }
 .empty-panel .primary-button { margin-top: 5px; }
 .auth-success { background: #edf5ed; color: #426e4b; }
-.rod-modal { max-height: calc(100vh - 36px); overflow-y: auto; }
+.rod-modal,.reel-modal { max-height: calc(100vh - 36px); overflow-y: auto; }
 @media (max-width: 850px) {
-  .tackle-grid,.rod-grid { grid-template-columns: 1fr; }
+  .tackle-grid,.rod-grid,.reel-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   .lure-card { padding: 14px; }
   .lure-card-header { align-items: flex-start; flex-wrap: wrap; }
   .lure-actions { flex-wrap: wrap; }
-  .lure-modal,.rod-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
-  .rod-card { align-items: flex-start; }
+  .lure-modal,.rod-modal,.reel-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .rod-card,.reel-card { align-items: flex-start; }
 }
 </style>
