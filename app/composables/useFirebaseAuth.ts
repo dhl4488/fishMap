@@ -37,6 +37,7 @@ interface FirebaseOptions {
 // Reuse one Firebase app instance in the browser rather than initializing per component.
 let firebaseClient: FirebaseClient | null = null
 
+// Initializes or reuses the browser Firebase client; accepts configuration and returns services or null if unavailable.
 function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
   if (!import.meta.client) return null
   if (firebaseClient) return firebaseClient
@@ -49,11 +50,13 @@ function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
   return firebaseClient
 }
 
+// Converts a Firebase user to the app's public user shape; accepts a Firebase user and returns its mapped form or null.
 function toTidelogUser(user: User | null): TidelogUser | null {
   if (!user) return null
   return { uid: user.uid, email: user.email, displayName: user.displayName }
 }
 
+// Provides shared auth state and operations; takes no input and returns configuration, session, and auth methods.
 export function useFirebaseAuth() {
   const runtimeConfig = useRuntimeConfig().public
   const firebaseOptions = {
@@ -71,7 +74,7 @@ export function useFirebaseAuth() {
 
   const isConfigured = computed(() => getFirebaseClient(firebaseOptions) !== null)
 
-  // Wait for Firebase's persisted session lookup before protected routes decide where to navigate.
+  // Resolves Firebase's initial session lookup; takes no input and marks auth ready after state is loaded.
   async function initialize(): Promise<void> {
     if (!import.meta.client || ready.value) return
     const client = getFirebaseClient(firebaseOptions)
@@ -105,6 +108,7 @@ export function useFirebaseAuth() {
     })
   }
 
+  // Creates a Firebase account and sets its display name; accepts credentials/name and updates shared user state.
   async function createAccount(email: string, password: string, displayName: string): Promise<void> {
     const client = getFirebaseClient(firebaseOptions)
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
@@ -113,7 +117,7 @@ export function useFirebaseAuth() {
     user.value = toTidelogUser(credential.user)
   }
 
-  // Keep auth operations behind one composable so screens share the same signed-in user state.
+  // Signs in with email/password; accepts credentials and updates shared user state after authentication.
   async function signIn(email: string, password: string): Promise<void> {
     const client = getFirebaseClient(firebaseOptions)
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
@@ -121,6 +125,7 @@ export function useFirebaseAuth() {
     user.value = toTidelogUser(credential.user)
   }
 
+  // Signs out the active Firebase user; takes no input and clears shared user state after success.
   async function signOutUser(): Promise<void> {
     const client = getFirebaseClient(firebaseOptions)
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
@@ -131,14 +136,17 @@ export function useFirebaseAuth() {
   return { user, ready, isConfigured, initialize, createAccount, signIn, signOutUser }
 }
 
+// Returns the configured Firestore client; takes no input and throws when Firebase is unavailable.
 export function useFirebaseDatabase() {
   return getFirebaseServices().db
 }
 
+// Returns the configured Firebase Storage client; takes no input and throws when Firebase is unavailable.
 export function useFirebaseStorage() {
   return getFirebaseServices().storage
 }
 
+// Resolves all configured Firebase services; takes no input and returns clients or throws a configuration error.
 function getFirebaseServices() {
   const runtimeConfig = useRuntimeConfig().public
   const client = getFirebaseClient({

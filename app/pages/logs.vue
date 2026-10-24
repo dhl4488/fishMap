@@ -57,7 +57,7 @@ const filteredTrips = computed(() => [...data.value.trips]
       ...(trip.lures?.map(lure => `${lure.name} ${lure.notes}`) ?? []),
       ...trip.catches.map(item => item.lure ?? '')
     ].join(' ')
-    const gearSearchText = `${trip.rod ?? ''} ${trip.hook ?? ''} ${trip.line ?? ''} ${trip.weight ?? ''}`
+    const gearSearchText = `${trip.rod ?? ''} ${trip.reel ?? ''} ${trip.hook ?? ''} ${trip.line ?? ''} ${trip.weight ?? ''}`
     const catchSearchText = trip.catches
       .map(item => `${item.species} ${item.lure ?? ''} ${item.length ?? ''} ${item.weight ?? ''} ${item.released === undefined ? '' : item.released ? 'released' : 'kept'}`)
       .join(' ')
@@ -66,12 +66,14 @@ const filteredTrips = computed(() => [...data.value.trips]
   })
   .sort((a, b) => b.date.localeCompare(a.date)))
 
+// Formats a trip's total catch count; accepts a trip and returns a count label or "Skunked".
 function catchSummary(trip: FishingTrip) {
   const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
   if (count === 0) return 'Skunked'
   return `${count} ${count === 1 ? 'catch' : 'catches'}`
 }
 
+// Triggers a browser download; accepts a filename, contents, and MIME type and releases the temporary URL.
 function downloadExport(filename: string, contents: string, type: string) {
   const blobUrl = URL.createObjectURL(new Blob([contents], { type }))
   const link = document.createElement('a')
@@ -83,6 +85,7 @@ function downloadExport(filename: string, contents: string, type: string) {
   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
 }
 
+// Builds and downloads a PDF backup of the diary; takes no input and reports failures in export state.
 async function exportPdf() {
   exportError.value = ''
   try {
@@ -94,8 +97,9 @@ async function exportPdf() {
     const contentWidth = pageWidth - margin * 2
     let y = margin
 
+    // Adds wrapped text to the current PDF page; accepts content/layout options and advances the PDF cursor.
     function addText(value: string, options: { bold?: boolean; size?: number; indent?: number; gapAfter?: number } = {}) {
-      const { bold = false, size = 9, indent = 0, gapAfter = 3 } = options
+      const { bold = false, size = 12, indent = 0, gapAfter = 3 } = options
       pdf.setFont('helvetica', bold ? 'bold' : 'normal')
       pdf.setFontSize(size)
       pdf.setTextColor(bold ? 49 : 83, bold ? 91 : 101, bold ? 70 : 91)
@@ -109,22 +113,24 @@ async function exportPdf() {
       y += lines.length * lineHeight + gapAfter
     }
 
+    // Adds a titled section to the PDF; accepts a heading and writes it using the shared text layout helper.
     function addSection(title: string) {
       y += 7
       addText(title, { bold: true, size: 13, gapAfter: 7 })
     }
 
     addText('Tidelog fishing journal', { bold: true, size: 22, gapAfter: 5 })
-    addText(`Exported ${new Date().toLocaleString()} · ${data.value.trips.length} trips`, { size: 9, gapAfter: 10 })
+    addText(`Exported ${new Date().toLocaleString()} · ${data.value.trips.length} trips`, { size: 12, gapAfter: 10 })
 
     addSection('Fishing trips')
     if (!data.value.trips.length) addText('No trips have been logged.')
     for (const trip of [...data.value.trips].sort((a, b) => b.date.localeCompare(a.date))) {
       const catchCount = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
-      addText(`${dateParts(trip.date).full} · ${trip.location}`, { bold: true, size: 10, gapAfter: 3 })
+      addText(`${dateParts(trip.date).full} · ${trip.location}`, { bold: true, size: 12, gapAfter: 3 })
       addText([
         trip.conditions && `Conditions: ${trip.conditions}`,
         trip.rod && `Rod: ${trip.rod}`,
+        trip.reel && `Reel: ${trip.reel}`,
         trip.hook && `Hook: ${trip.hook}`,
         trip.line && `Line: ${trip.line}`,
         trip.weight && `Weight: ${trip.weight}`,
@@ -140,12 +146,12 @@ async function exportPdf() {
           item.lure && `Lure ${item.lure}`
         ].filter(Boolean).join(' · ')
         addText(`${item.species} — ${details}`, { indent: 18, gapAfter: 2 })
-        if (item.photo) addText(`Fish photo: ${item.photo}`, { indent: 27, size: 8 })
+        if (item.photo) addText(`Fish photo: ${item.photo}`, { indent: 27, size: 12 })
       }
       if (trip.lures?.length) {
         addText(`Lures: ${trip.lures.map(lure => `${lure.name}${lure.notes ? ` (${lure.notes})` : ''}`).join('; ')}`, { indent: 10 })
       }
-      if (trip.photos?.length) addText(`Trip photos: ${trip.photos.join('; ')}`, { indent: 10, size: 8 })
+      if (trip.photos?.length) addText(`Trip photos: ${trip.photos.join('; ')}`, { indent: 10, size: 12 })
       if (trip.notes) addText(`Notes: ${trip.notes}`, { indent: 10 })
       y += 5
     }
@@ -224,6 +230,7 @@ const csvColumns = [
   'longitude', 'water', 'kind', 'notes', 'combo_lures', 'hidden_lure_key'
 ]
 
+// Serializes diary, tacklebox, and spot data as CSV and starts a download; takes no input.
 function exportCsv() {
   type CsvValue = string | number | boolean | null | undefined
   const rows: Array<Record<string, CsvValue>> = []
@@ -234,6 +241,7 @@ function exportCsv() {
       location: trip.location,
       conditions: trip.conditions,
       rod: trip.rod,
+      reel: trip.reel,
       hook: trip.hook,
       line: trip.line,
       trip_weight: trip.weight,
@@ -311,6 +319,7 @@ function exportCsv() {
   for (const key of data.value.hiddenTackleboxLures) {
     rows.push({ record_type: 'hidden_lure', hidden_lure_key: key })
   }
+  // Escapes one CSV cell; accepts a nullable scalar and returns a valid quoted or plain field.
   const escapeCsv = (value: CsvValue) => {
     const text = value === null || value === undefined ? '' : String(value)
     return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
@@ -326,6 +335,7 @@ function exportCsv() {
   )
 }
 
+// Opens a blank trip dialog; takes no input and clears stale editing/save state.
 function openNewTrip() {
   editingTrip.value = null
   tripSaveError.value = null
@@ -334,12 +344,13 @@ function openNewTrip() {
   tripModalOpen.value = true
 }
 
+// Closes the trip dialog and clears its selected edit target; takes no input.
 function closeTripModal() {
   tripModalOpen.value = false
   editingTrip.value = null
 }
 
-// Format diary dates without allowing timezone conversion to change the calendar day.
+// Formats a YYYY-MM-DD diary date without timezone shifting; accepts the stored date and returns day/month/full labels.
 function dateParts(value: string) {
   const date = new Date(`${value}T12:00:00`)
   return {
@@ -349,6 +360,7 @@ function dateParts(value: string) {
   }
 }
 
+// Creates or updates a trip; accepts trip fields and photo files and reports save status to the diary.
 async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhotos: Array<File | null>) {
   tripSaving.value = true
   tripSaveError.value = null
@@ -374,6 +386,7 @@ async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhot
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
 
+// Persists a combo preset; accepts combo fields and updates success/error state for the modal.
 async function saveCombo(combo: Omit<FishingCombo, 'id'>) {
   comboSaving.value = true
   comboSaveError.value = null
@@ -388,6 +401,7 @@ async function saveCombo(combo: Omit<FishingCombo, 'id'>) {
   }
 }
 
+// Opens the trip dialog with an existing trip; accepts the selected trip and clears stale save errors.
 function editTrip(trip: FishingTrip) {
   tripActionError.value = ''
   editingTrip.value = trip
@@ -397,6 +411,7 @@ function editTrip(trip: FishingTrip) {
   tripModalOpen.value = true
 }
 
+// Confirms and deletes a saved or locally queued trip; accepts the trip and updates diary feedback.
 async function removeTrip(trip: FishingTrip) {
   const isPending = pendingTripIds.value.includes(trip.id)
   const prompt = isPending
@@ -497,7 +512,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
           </div>
         </div>
         <p v-if="pendingTripIds.includes(trip.id)" class="pending-trip-note">Saved on this device · waiting to sync</p>
-        <div v-if="trip.lures?.length || trip.rod || trip.hook || trip.line || trip.weight || trip.waterDepth" class="entry-trip-details">
+        <div v-if="trip.lures?.length || trip.rod || trip.reel || trip.hook || trip.line || trip.weight || trip.waterDepth" class="entry-trip-details">
           <div v-if="trip.lures?.length" class="entry-lures">
             <strong>Lures:</strong>
             <ul>
@@ -507,6 +522,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
             </ul>
           </div>
           <span v-if="trip.rod"><strong>Rod:</strong> {{ trip.rod }}</span>
+          <span v-if="trip.reel"><strong>Reel:</strong> {{ trip.reel }}</span>
           <span v-if="trip.hook"><strong>Hook:</strong> {{ trip.hook }}</span>
           <span v-if="trip.line"><strong>Line:</strong> {{ trip.line }}</span>
           <span v-if="trip.weight"><strong>Weight:</strong> {{ trip.weight }}</span>
@@ -559,6 +575,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     :combos="data.combos"
     :tacklebox-lures="data.tackleboxLures"
     :tacklebox-rods="data.tackleboxRods"
+    :tacklebox-reels="data.tackleboxReels"
     :previous-lures="previousLures"
     :spots="data.spots"
     :spots-loading="dataLoading"
@@ -577,28 +594,28 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 </template>
 
 <style scoped>
-.diary-count { color: #929d96; font-size: 10px; margin-left: auto; }
-.offline-banner { align-items: center; background: #edf5ed; border: 1px solid #dbe8da; border-radius: 9px; color: #46694c; display: flex; flex-wrap: wrap; font-size: 11px; gap: 8px; line-height: 1.45; margin: 0 0 14px; padding: 10px 12px; }
+.diary-count { color: #929d96; font-size: 12px; margin-left: auto; }
+.offline-banner { align-items: center; background: #edf5ed; border: 1px solid #dbe8da; border-radius: 9px; color: #46694c; display: flex; flex-wrap: wrap; font-size: 12px; gap: 8px; line-height: 1.45; margin: 0 0 14px; padding: 10px 12px; }
 .offline-banner-error { background: #fbf0ec; border-color: #f1ded6; color: #985b45; }
 .offline-indicator { background: #6c9469; border-radius: 50%; flex: 0 0 8px; height: 8px; }
 .offline-banner-error .offline-indicator { background: #b87558; }
-.offline-sync-button { background: #fff; border: 1px solid #d5e1d4; border-radius: 6px; color: #46694c; font-size: 10px; margin-left: auto; min-height: 32px; padding: 4px 10px; }
-.pending-trip-note { background: #f5f8f2; border-radius: 6px; color: #6a815e; font-size: 10px; margin: 10px 0 0; padding: 7px 9px; }
+.offline-sync-button { background: #fff; border: 1px solid #d5e1d4; border-radius: 6px; color: #46694c; font-size: 12px; margin-left: auto; min-height: 32px; padding: 4px 10px; }
+.pending-trip-note { background: #f5f8f2; border-radius: 6px; color: #6a815e; font-size: 12px; margin: 10px 0 0; padding: 7px 9px; }
 .heading-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .heading-actions .secondary-button { min-height: 38px; padding: 0 11px; }
 .heading-actions .secondary-button:disabled { cursor: wait; opacity: .55; }
 .entry-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-.entry-action-button { background: #f7f8f5; border: 1px solid #e4e9e3; border-radius: 6px; color: #536158; cursor: pointer; font-size: 10px; min-height: 36px; padding: 5px 10px; }
+.entry-action-button { background: #f7f8f5; border: 1px solid #e4e9e3; border-radius: 6px; color: #536158; cursor: pointer; font-size: 12px; min-height: 36px; padding: 5px 10px; }
 .entry-action-button:hover:not(:disabled) { border-color: #a6b9a8; }
 .entry-action-button:disabled { cursor: wait; opacity: .6; }
 .entry-delete-button { color: #985b45; }
-.entry-trip-details { align-items: flex-start; color: #718078; display: flex; flex-wrap: wrap; font-size: 11px; gap: 5px 18px; margin: 12px 0 0; }
+.entry-trip-details { align-items: flex-start; color: #718078; display: flex; flex-wrap: wrap; font-size: 12px; gap: 5px 18px; margin: 12px 0 0; }
 .entry-trip-details strong { color: #536158; font-weight: 600; }
 .entry-lures { display: flex; flex-wrap: wrap; gap: 0 5px; }
 .entry-lures ul { list-style: none; margin: 0; padding: 0; }
 .entry-lures li + li { margin-top: 3px; }
-.catch-lure { color: #718078; font-size: 10px; }
-.catch-photo-link { align-items: center; color: #477353; display: inline-flex; font-size: 10px; gap: 6px; margin-top: 3px; }
+.catch-lure { color: #718078; font-size: 12px; }
+.catch-photo-link { align-items: center; color: #477353; display: inline-flex; font-size: 12px; gap: 6px; margin-top: 3px; }
 .catch-photo-link img { border-radius: 5px; height: 34px; object-fit: cover; width: 44px; }
 @media (max-width: 760px) {
   .heading-actions { justify-content: flex-start; }

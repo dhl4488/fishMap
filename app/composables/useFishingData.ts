@@ -82,6 +82,8 @@ export interface FishingTrip {
   lures?: FishingLure[]
   rod?: string
   rodId?: string
+  reel?: string
+  reelId?: string
   hook?: string
   line?: string
   weight?: string
@@ -111,6 +113,7 @@ interface SavedData {
 }
 
 // Validate Firestore payloads at the boundary before exposing them to the UI.
+// Validates an unknown catch payload; accepts any value and returns a type guard for FishingCatch.
 function isFishingCatch(value: unknown): value is FishingCatch {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
@@ -126,6 +129,7 @@ function isFishingCatch(value: unknown): value is FishingCatch {
     (item.photo === undefined || typeof item.photo === 'string')
 }
 
+// Validates an unknown trip-lure payload; accepts any value and returns a type guard for FishingLure.
 function isFishingLure(value: unknown): value is FishingLure {
   if (typeof value !== 'object' || value === null) return false
   const lure = value as Record<string, unknown>
@@ -134,6 +138,7 @@ function isFishingLure(value: unknown): value is FishingLure {
     (lure.inventoryLureId === undefined || typeof lure.inventoryLureId === 'string')
 }
 
+// Validates an unknown saved-lure payload; accepts any value and returns a type guard for TackleboxLure.
 function isTackleboxLure(value: unknown): value is TackleboxLure {
   if (typeof value !== 'object' || value === null) return false
   const lure = value as Record<string, unknown>
@@ -146,6 +151,7 @@ function isTackleboxLure(value: unknown): value is TackleboxLure {
     typeof lure.notes === 'string'
 }
 
+// Validates an unknown saved-rod payload; accepts any value and returns a type guard for TackleboxRod.
 function isTackleboxRod(value: unknown): value is TackleboxRod {
   if (typeof value !== 'object' || value === null) return false
   const rod = value as Record<string, unknown>
@@ -159,6 +165,7 @@ function isTackleboxRod(value: unknown): value is TackleboxRod {
     typeof rod.notes === 'string'
 }
 
+// Validates an unknown saved-reel payload; accepts any value and returns a type guard for TackleboxReel.
 function isTackleboxReel(value: unknown): value is TackleboxReel {
   if (typeof value !== 'object' || value === null) return false
   const reel = value as Record<string, unknown>
@@ -172,6 +179,7 @@ function isTackleboxReel(value: unknown): value is TackleboxReel {
     typeof reel.notes === 'string'
 }
 
+// Validates an unknown stored trip; accepts any value and returns a type guard for FishingTrip.
 function isFishingTrip(value: unknown): value is FishingTrip {
   if (typeof value !== 'object' || value === null) return false
   const trip = value as Record<string, unknown>
@@ -184,6 +192,8 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     (trip.lures === undefined || (Array.isArray(trip.lures) && trip.lures.every(isFishingLure))) &&
     (trip.rod === undefined || typeof trip.rod === 'string') &&
     (trip.rodId === undefined || typeof trip.rodId === 'string') &&
+    (trip.reel === undefined || typeof trip.reel === 'string') &&
+    (trip.reelId === undefined || typeof trip.reelId === 'string') &&
     (trip.hook === undefined || typeof trip.hook === 'string') &&
     (trip.line === undefined || typeof trip.line === 'string') &&
     (trip.weight === undefined || typeof trip.weight === 'string') &&
@@ -192,6 +202,7 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     (trip.photos === undefined || (Array.isArray(trip.photos) && trip.photos.every(photo => typeof photo === 'string')))
 }
 
+// Validates an unknown saved-combo payload; accepts any value and returns a type guard for FishingCombo.
 function isFishingCombo(value: unknown): value is FishingCombo {
   if (typeof value !== 'object' || value === null) return false
   const combo = value as Record<string, unknown>
@@ -204,6 +215,7 @@ function isFishingCombo(value: unknown): value is FishingCombo {
     typeof combo.weight === 'string'
 }
 
+// Validates an unknown saved-spot payload; accepts any value and returns a type guard for FishingSpot.
 function isFishingSpot(value: unknown): value is FishingSpot {
   if (typeof value !== 'object' || value === null) return false
   const spot = value as Record<string, unknown>
@@ -216,6 +228,7 @@ function isFishingSpot(value: unknown): value is FishingSpot {
     typeof spot.notes === 'string'
 }
 
+// Detects an already-missing Storage object; accepts an unknown error and returns a boolean.
 function isMissingStorageObject(error: unknown) {
   return typeof error === 'object' &&
     error !== null &&
@@ -223,6 +236,7 @@ function isMissingStorageObject(error: unknown) {
     error.code === 'storage/object-not-found'
 }
 
+// Loads and validates one user's Firestore collection; accepts its path and validator and returns typed records.
 async function loadCollection<T>(
   db: Firestore,
   userId: string,
@@ -240,6 +254,7 @@ async function loadCollection<T>(
   })
 }
 
+// Loads hidden lure keys for one user; accepts Firestore and UID and returns validated keys.
 async function loadHiddenTackleboxLures(db: Firestore, userId: string): Promise<string[]> {
   const snapshot = await getDocs(collection(db, 'users', userId, 'hiddenTackleboxLures'))
   return snapshot.docs.map((entry) => {
@@ -249,6 +264,7 @@ async function loadHiddenTackleboxLures(db: Firestore, userId: string): Promise<
   })
 }
 
+// Uploads catch images and attaches download URLs; accepts trip/photo context and returns updated catch records.
 async function uploadCatchPhotos(
   storage: NonNullable<ReturnType<typeof useFirebaseStorage>>,
   userId: string,
@@ -282,6 +298,7 @@ async function uploadCatchPhotos(
   })
 }
 
+// Uploads trip and catch photos and writes the trip record; accepts account/trip data and returns the saved trip.
 async function persistTrip(
   db: Firestore,
   storage: NonNullable<ReturnType<typeof useFirebaseStorage>>,
@@ -327,12 +344,14 @@ async function persistTrip(
   }
 }
 
+// Classifies errors that should queue trips for retry; accepts an unknown error and returns a connection-failure flag.
 function isConnectionError(error: unknown) {
   if (!import.meta.client || !navigator.onLine) return true
   return typeof error === 'object' && error !== null && 'code' in error &&
     ['unavailable', 'deadline-exceeded', 'network-request-failed', 'storage/retry-limit-exceeded'].includes(String(error.code))
 }
 
+// Provides user-scoped fishing data, persistence, and offline synchronization; takes no input and returns state/actions.
 export function useFishingData() {
   const { user, initialize } = useFirebaseAuth()
   const data = useState<SavedData>('fishing-data', () => ({ trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], tackleboxReels: [], hiddenTackleboxLures: [] }))
@@ -346,6 +365,7 @@ export function useFishingData() {
   const db = import.meta.client ? useFirebaseDatabase() : null
   const storage = import.meta.client ? useFirebaseStorage() : null
 
+  // Synchronizes queued trips for the active user; takes no input and updates queue/data or sync-error state.
   async function syncPendingTrips() {
     const account = user.value
     if (!account || !db || !storage || !import.meta.client || !isOnline.value || syncingOfflineTrips.value) return
@@ -379,6 +399,7 @@ export function useFishingData() {
     }
   }
 
+  // Deletes an unsynced local trip; accepts its ID and removes it from local queue and shared state.
   async function discardPendingTrip(tripId: string) {
     const account = user.value
     if (!account) throw new Error('Sign in before discarding a locally saved fishing trip.')
@@ -389,7 +410,7 @@ export function useFishingData() {
     }
   }
 
-  // Fetch only the signed-in account's subcollections and discard stale results after an account switch.
+  // Loads queued and Firestore data for one account; accepts the account and replaces shared data/error/loading state.
   async function loadUserData(account: TidelogUser | null) {
     data.value = { trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], tackleboxReels: [], hiddenTackleboxLures: [] }
     pendingTripIds.value = []
@@ -450,10 +471,12 @@ export function useFishingData() {
     void initialize()
     watch(user, account => void loadUserData(account), { immediate: true })
     isOnline.value = navigator.onLine
+    // Marks the app online and attempts queued-trip synchronization; takes no input.
     const handleOnline = () => {
       isOnline.value = true
       void syncPendingTrips()
     }
+    // Marks the app offline after a browser connectivity event; takes no input.
     const handleOffline = () => { isOnline.value = false }
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -484,7 +507,7 @@ export function useFishingData() {
     })
   }
 
-  // Firestore paths are scoped by Firebase UID, so saved data cannot be mixed between accounts.
+  // Saves a trip online or in the local queue; accepts trip and photo files and returns whether it was queued.
   async function addTrip(
     trip: Omit<FishingTrip, 'id'>,
     photos: File[] = [],
@@ -500,6 +523,7 @@ export function useFishingData() {
     if (catchPhotoFiles.some(photo => photo && photo.size >= 10 * 1024 * 1024)) throw new Error('Each catch photo must be smaller than 10 MB.')
 
     const tripId = crypto.randomUUID()
+    // Stores this trip locally for later upload; takes no input and updates queue state after persistence.
     const queueTrip = async () => {
       const queued: OfflineTripRecord = {
         key: `${account.uid}:${tripId}`,
@@ -534,6 +558,7 @@ export function useFishingData() {
     }
   }
 
+  // Updates a stored trip and its catch photos; accepts trip ID, fields, and files and refreshes shared data.
   async function updateTrip(
     tripId: string,
     trip: Omit<FishingTrip, 'id' | 'photos'>,
@@ -578,6 +603,7 @@ export function useFishingData() {
     }
   }
 
+  // Deletes a saved trip and associated photos; accepts its ID and removes it from shared state after persistence.
   async function deleteTrip(tripId: string) {
     const account = user.value
     if (!account || !db || !storage) throw new Error('Sign in before deleting a fishing trip.')
@@ -606,6 +632,7 @@ export function useFishingData() {
     }
   }
 
+  // Creates a saved fishing spot; accepts spot fields and adds the persisted record to shared state.
   async function addSpot(spot: Omit<FishingSpot, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before saving a fishing spot.')
@@ -616,6 +643,7 @@ export function useFishingData() {
     if (user.value?.uid === account.uid) data.value.spots.unshift({ ...spot, id: saved.id })
   }
 
+  // Deletes a saved fishing spot; accepts its ID and removes it from shared state after persistence.
   async function deleteSpot(spotId: string) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before deleting a fishing spot.')
@@ -626,6 +654,7 @@ export function useFishingData() {
     }
   }
 
+  // Creates a tacklebox lure; accepts lure fields and adds the saved record to shared state.
   async function addTackleboxLure(lure: Omit<TackleboxLure, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a lure to your tacklebox.')
@@ -636,6 +665,7 @@ export function useFishingData() {
     if (user.value?.uid === account.uid) data.value.tackleboxLures.unshift({ ...lure, id: saved.id })
   }
 
+  // Updates a tacklebox lure; accepts its ID and fields and refreshes the corresponding shared record.
   async function updateTackleboxLure(lureId: string, lure: Omit<TackleboxLure, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before updating a tacklebox lure.')
@@ -647,6 +677,7 @@ export function useFishingData() {
     }
   }
 
+  // Hides a lure key and optionally deletes its inventory record; accepts identity details and retains trip history.
   async function removeTackleboxLure(key: string, name: string, lureId?: string) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before removing a lure from your tacklebox.')
@@ -675,6 +706,7 @@ export function useFishingData() {
     }
   }
 
+  // Creates a tacklebox rod; accepts rod fields and adds the saved record to shared state.
   async function addTackleboxRod(rod: Omit<TackleboxRod, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a rod to your tacklebox.')
@@ -685,6 +717,7 @@ export function useFishingData() {
     if (user.value?.uid === account.uid) data.value.tackleboxRods.unshift({ ...rod, id: saved.id })
   }
 
+  // Updates a tacklebox rod; accepts its ID and fields and refreshes the corresponding shared record.
   async function updateTackleboxRod(rodId: string, rod: Omit<TackleboxRod, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before updating a tacklebox rod.')
@@ -696,6 +729,7 @@ export function useFishingData() {
     }
   }
 
+  // Deletes a tacklebox rod; accepts its ID and removes the record from shared state after persistence.
   async function deleteTackleboxRod(rodId: string) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before deleting a tacklebox rod.')
@@ -705,6 +739,7 @@ export function useFishingData() {
     }
   }
 
+  // Creates a tacklebox reel; accepts reel fields and adds the saved record to shared state.
   async function addTackleboxReel(reel: Omit<TackleboxReel, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a reel to your tacklebox.')
@@ -715,6 +750,7 @@ export function useFishingData() {
     if (user.value?.uid === account.uid) data.value.tackleboxReels.unshift({ ...reel, id: saved.id })
   }
 
+  // Updates a tacklebox reel; accepts its ID and fields and refreshes the corresponding shared record.
   async function updateTackleboxReel(reelId: string, reel: Omit<TackleboxReel, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before updating a tacklebox reel.')
@@ -726,6 +762,7 @@ export function useFishingData() {
     }
   }
 
+  // Deletes a tacklebox reel; accepts its ID and removes the record from shared state after persistence.
   async function deleteTackleboxReel(reelId: string) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before deleting a tacklebox reel.')
@@ -735,6 +772,7 @@ export function useFishingData() {
     }
   }
 
+  // Creates a saved combo preset; accepts combo fields and adds the persisted record to shared state.
   async function addCombo(combo: Omit<FishingCombo, 'id'>) {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before saving a fishing combo.')

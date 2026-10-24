@@ -32,6 +32,7 @@ interface GeocodingResult {
   lon: string
 }
 
+// Builds the map marker for a spot; accepts its selected state and returns a Leaflet icon.
 function markerIcon(isSelected = false): Leaflet.DivIcon {
   if (!leaflet) throw new Error('Map library has not been initialized.')
   return leaflet.divIcon({
@@ -42,6 +43,7 @@ function markerIcon(isSelected = false): Leaflet.DivIcon {
   })
 }
 
+// Recreates markers for the current saved spots; takes no input and synchronizes markers with component props.
 function renderSpots() {
   if (!map || !leaflet) return
 
@@ -62,6 +64,7 @@ function renderSpots() {
   }
 }
 
+// Adds, moves, or removes the in-progress location marker; takes no input and synchronizes it with the picked location.
 function renderPickedLocation() {
   if (!map || !props.pickedLocation) {
     pickedMarker?.remove()
@@ -77,6 +80,7 @@ function renderPickedLocation() {
   }
 }
 
+// Searches OpenStreetMap for the entered address; takes no input and updates results or search error state.
 async function searchAddress() {
   const query = addressQuery.value.trim()
   if (!query || searching.value || !map) return
@@ -121,6 +125,7 @@ async function searchAddress() {
   }
 }
 
+// Moves the map to a geocoding result; accepts a result and updates map position and search state.
 function goToResult(result: GeocodingResult) {
   if (!map) return
   const latitude = Number(result.lat)
@@ -215,18 +220,18 @@ onBeforeUnmount(() => {
 .tidelog-map-marker-pin i { background: white; border-radius: 50%; height: 6px; width: 6px; }
 .tidelog-map-marker-pin.is-selected { background: #d38b57; }
 .fishing-map-picking .leaflet-container { cursor: crosshair; }
-.fishing-map .leaflet-control-attribution { font-size: 9px; }
+.fishing-map .leaflet-control-attribution { font-size: 12px; }
 .map-search { max-width: min(430px, calc(100% - 64px)); position: absolute; right: 12px; top: 12px; z-index: 1100; }
 .map-search-input { align-items: center; background: white; border: 1px solid #e5eae4; border-radius: 9px; box-shadow: 0 2px 10px #1d33271c; display: flex; gap: 8px; padding: 4px 5px 4px 11px; }
 .map-search-icon { color: #78867e; font-size: 18px; line-height: 1; }
-.map-search-input input { background: transparent; border: 0; color: #34433a; flex: 1 1 auto; font: inherit; font-size: 11px; min-width: 0; outline: 0; overflow: hidden; padding: 7px 0; text-overflow: ellipsis; white-space: nowrap; }
+.map-search-input input { background: transparent; border: 0; color: #34433a; flex: 1 1 auto; font: inherit; font-size: 12px; min-width: 0; outline: 0; overflow: hidden; padding: 7px 0; text-overflow: ellipsis; white-space: nowrap; }
 .map-search-input input::placeholder { color: #99a49d; }
-.map-search-input button { background: #316b53; border: 0; border-radius: 6px; color: white; flex: 0 0 auto; font-size: 10px; font-weight: 600; padding: 8px 10px; }
+.map-search-input button { background: #316b53; border: 0; border-radius: 6px; color: white; flex: 0 0 auto; font-size: 12px; font-weight: 600; padding: 8px 10px; }
 .map-search-input button:disabled { cursor: not-allowed; opacity: .55; }
 .map-search-results { background: white; border: 1px solid #e5eae4; border-radius: 9px; box-shadow: 0 5px 18px #1d33271c; list-style: none; margin: 6px 0 0; max-height: 220px; overflow-y: auto; padding: 4px; }
 .map-search-results li + li { border-top: 1px solid #f0f2ee; }
-.map-search-results li button { background: transparent; border: 0; color: #536158; cursor: pointer; font: inherit; font-size: 10px; line-height: 1.45; padding: 9px; text-align: left; width: 100%; }
+.map-search-results li button { background: transparent; border: 0; color: #536158; cursor: pointer; font: inherit; font-size: 12px; line-height: 1.45; padding: 9px; text-align: left; width: 100%; }
 .map-search-results li button:hover { background: #f3f6f2; }
-.map-search-results .map-search-attribution { color: #98a29c; font-size: 9px; padding: 7px 9px; }
-.map-search-message { background: white; border: 1px solid #e5eae4; border-radius: 8px; box-shadow: 0 2px 10px #1d33271c; color: #728078; font-size: 10px; line-height: 1.4; margin: 6px 0 0; padding: 10px; }
+.map-search-results .map-search-attribution { color: #98a29c; font-size: 12px; padding: 7px 9px; }
+.map-search-message { background: white; border: 1px solid #e5eae4; border-radius: 8px; box-shadow: 0 2px 10px #1d33271c; color: #728078; font-size: 12px; line-height: 1.4; margin: 6px 0 0; padding: 10px; }
 </style>

@@ -43,12 +43,14 @@ const lastTripDate = computed(() => trips.value[0]?.date)
 // Use the first part of the account name for the greeting, with a safe fallback.
 const firstName = computed(() => name.value.trim().split(/\s+/)[0] || 'Angler')
 
+// Formats the catch count for a trip; accepts the trip and returns a count label or "Skunked".
 function catchSummary(trip: FishingTrip) {
   const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
   if (count === 0) return 'Skunked'
   return `${count} ${count === 1 ? 'catch' : 'catches'}`
 }
 
+// Opens a clean new-trip dialog; takes no input and clears prior save feedback.
 function openTripModal() {
   tripSaveError.value = null
   comboSaveError.value = null
@@ -56,7 +58,7 @@ function openTripModal() {
   tripModalOpen.value = true
 }
 
-// Format date-only strings at midday to avoid timezone conversion shifting the day.
+// Formats a YYYY-MM-DD value at midday; accepts a date string and returns its day/month display labels.
 function dateParts(value: string) {
   const date = new Date(`${value}T12:00:00`)
   return {
@@ -65,7 +67,7 @@ function dateParts(value: string) {
   }
 }
 
-// Save the dialog's draft through the user-scoped data composable.
+// Saves the dialog draft; accepts trip/photo data and updates the page with success feedback or a save error.
 async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhotos: Array<File | null>) {
   tripSaving.value = true
   tripSaveError.value = null
@@ -87,6 +89,7 @@ async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhot
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
 
+// Persists a saved combo preset; accepts its fields and updates combo success/error state.
 async function saveCombo(combo: Omit<FishingCombo, 'id'>) {
   comboSaving.value = true
   comboSaveError.value = null
@@ -198,6 +201,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     :combos="data.combos"
     :tacklebox-lures="data.tackleboxLures"
     :tacklebox-rods="data.tackleboxRods"
+    :tacklebox-reels="data.tackleboxReels"
     :previous-lures="previousLures"
     :spots="data.spots"
     :spots-loading="dataLoading"

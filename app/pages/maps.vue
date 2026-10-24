@@ -35,12 +35,14 @@ const mapLink = computed(() => {
   return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=13/${latitude}/${longitude}`
 })
 
+// Shows a temporary status message; accepts its text and replaces any active dismissal timer.
 function showToast(message: string) {
   toastMessage.value = message
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
 }
 
+// Resets the spot form and enables map picking; takes no input and initializes a new spot draft.
 function startSpotPlacement() {
   spotName.value = ''
   spotWater.value = ''
@@ -52,6 +54,7 @@ function startSpotPlacement() {
   pickMode.value = true
 }
 
+// Reads the device location for a new spot; takes no input and opens the spot dialog or sets a visible error.
 async function useCurrentLocation() {
   if (locating.value) return
   locating.value = true
@@ -80,6 +83,7 @@ async function useCurrentLocation() {
   }
 }
 
+// Saves picked map coordinates into the new spot form; accepts latitude/longitude and opens the dialog.
 function handleMapPick(coordinates: { latitude: number; longitude: number }) {
   pickedLocation.value = coordinates
   spotLatitude.value = coordinates.latitude.toFixed(6)
@@ -88,11 +92,13 @@ function handleMapPick(coordinates: { latitude: number; longitude: number }) {
   spotModalOpen.value = true
 }
 
+// Cancels spot creation; takes no input and closes the dialog while clearing the temporary map marker.
 function cancelSpotModal() {
   spotModalOpen.value = false
   pickedLocation.value = null
 }
 
+// Persists a new fishing spot; accepts its fields and displays success or failure feedback.
 async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
   try {
     await addSpot(spot)
@@ -106,6 +112,7 @@ async function saveSpot(spot: Omit<FishingSpot, 'id'>) {
   }
 }
 
+// Confirms and deletes a saved spot; accepts the spot and updates selection/error state after deletion.
 async function removeSpot(spot: FishingSpot) {
   if (!window.confirm(`Delete the favorite spot "${spot.name}"? This cannot be undone.`)) return
 
@@ -184,7 +191,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         </article>
 
         <section class="panel spot-browser">
-          <div class="section-heading"><h2>Your saved spots</h2><span style="color:#9aa59e;font-size:10px">{{ data.spots.length }}</span></div>
+          <div class="section-heading"><h2>Your saved spots</h2><span style="color:#9aa59e;font-size:12px">{{ data.spots.length }}</span></div>
           <p v-if="spotActionError" class="auth-message auth-error" role="alert">{{ spotActionError }}</p>
           <div v-for="spot in data.spots" :key="spot.id" class="spot-select-row">
             <button
@@ -205,8 +212,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
               @click="removeSpot(spot)"
             >{{ deletingSpotId === spot.id ? '…' : '×' }}</button>
           </div>
-          <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:10px">Your saved places will show up here.</div>
-          <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:10px">Loading your saved spots…</div>
+          <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:12px">Your saved places will show up here.</div>
+          <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:12px">Loading your saved spots…</div>
           <button class="text-button" style="margin-top:8px" @click="startSpotPlacement">＋ Add another spot</button>
         </section>
 
@@ -246,7 +253,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 
 <style scoped>
 .location-action { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: -9px 0 15px; }
-.location-action > span { color: #89958e; font-size: 10px; }
+.location-action > span { color: #89958e; font-size: 12px; }
 .location-action .secondary-button { min-height: 38px; }
 .spot-select-row { align-items: center; display: flex; gap: 4px; }
 .spot-select-row .spot-select { min-width: 0; }

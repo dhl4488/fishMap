@@ -7,6 +7,7 @@ const loadError = ref(false)
 const isLoaded = ref(false)
 let visibilityObserver: IntersectionObserver | null = null
 
+// Loads the species' 3D model on demand; takes no input and updates loading/error state from the model result.
 async function loadModel() {
   const filename = ontarioFishModelFiles[props.species as keyof typeof ontarioFishModelFiles]
   if (!filename) {
@@ -75,6 +76,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .fish-model { align-items: center; background: #f5f7f4; border-radius: 8px; display: flex; flex: 0 0 132px; height: 86px; justify-content: center; overflow: hidden; position: relative; }
 .fish-model :deep(model-viewer) { background: transparent; height: 100%; width: 100%; }
-.model-loading { color: #94a098; font-size: 9px; }
+.model-loading { color: #94a098; font-size: 12px; }
 .model-fallback { font-size: 28px; }
 </style>

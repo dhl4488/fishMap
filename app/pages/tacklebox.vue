@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
 
-useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lure collection and see what you have caught with each lure.' }] })
+useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lures, rods, and reels and see what you have caught with them.' }] })
 
 const {
   data,
@@ -32,6 +32,13 @@ interface LureSummary {
   lastUsed: string
   catches: Map<string, LureCatchSummary>
   totalCatches: number
+}
+
+interface GearTripSummary {
+  tripCount: number
+  lastUsed: string
+  totalCatches: number
+  species: LureCatchSummary[]
 }
 
 const lureTypes = [
@@ -104,6 +111,7 @@ const reelTypes = [
   { value: 'Other', label: 'Other reel' }
 ]
 
+// Resolves a lure's stable inventory/name key; accepts its name and optional ID and returns the canonical key.
 function lureKey(name: string, inventoryLureId?: string) {
   if (inventoryLureId) return `id:${inventoryLureId}`
   const normalizedName = name.trim().toLocaleLowerCase()
@@ -111,9 +119,11 @@ function lureKey(name: string, inventoryLureId?: string) {
   return inventoryItem ? `id:${inventoryItem.id}` : `name:${normalizedName}`
 }
 
+// Aggregates inventory and trip history by lure; returns visible lure cards with trip and catch summaries.
 const lureSummaries = computed(() => {
   const summaries = new Map<string, LureSummary>()
 
+  // Retrieves or creates the summary matching a lure name or inventory ID.
   function ensureSummary(name: string, inventoryLure?: TackleboxLure, inventoryId?: string) {
     const key = lureKey(name, inventoryId ?? inventoryLure?.id)
     let summary = summaries.get(key)
@@ -176,6 +186,46 @@ const lureSummaries = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
+// Summarizes trips and catches linked to a saved rod or reel; accepts gear identity and returns display-ready usage data.
+function gearTripSummary(kind: 'rod' | 'reel', id: string, name: string): GearTripSummary {
+  const normalizedName = name.trim().toLocaleLowerCase()
+  const trips = data.value.trips.filter((trip) => {
+    const tripGearId = kind === 'rod' ? trip.rodId : trip.reelId
+    const tripGearName = kind === 'rod' ? trip.rod : trip.reel
+    return tripGearId === id ||
+      (!tripGearId && tripGearName?.trim().toLocaleLowerCase() === normalizedName)
+  })
+  const catches = new Map<string, LureCatchSummary>()
+
+  for (const trip of trips) {
+    for (const item of trip.catches) {
+      const species = catches.get(item.species) ?? { species: item.species, quantity: 0 }
+      species.quantity += item.quantity
+      catches.set(item.species, species)
+    }
+  }
+
+  return {
+    tripCount: trips.length,
+    lastUsed: trips.reduce((latest, trip) => trip.date > latest ? trip.date : latest, ''),
+    totalCatches: [...catches.values()].reduce((total, item) => total + item.quantity, 0),
+    species: [...catches.values()].sort((a, b) => b.quantity - a.quantity || a.species.localeCompare(b.species))
+  }
+}
+
+// Builds rod cards with their usage summaries; returns gear fields alongside trip/catch history.
+const rodCards = computed(() => data.value.tackleboxRods.map(rod => ({
+  ...rod,
+  usage: gearTripSummary('rod', rod.id, rod.name)
+})))
+
+// Builds reel cards with their usage summaries; returns gear fields alongside trip/catch history.
+const reelCards = computed(() => data.value.tackleboxReels.map(reel => ({
+  ...reel,
+  usage: gearTripSummary('reel', reel.id, reel.name)
+})))
+
+// Opens a new or edit lure dialog; accepts an optional saved lure/name and populates the form state.
 function openLureForm(lure: TackleboxLure | null = null, name = '') {
   editingLure.value = lure
   lureFormIsEdit.value = lure !== null || name !== ''
@@ -190,6 +240,7 @@ function openLureForm(lure: TackleboxLure | null = null, name = '') {
   lureModalOpen.value = true
 }
 
+// Closes the lure dialog unless a save is in progress; takes no input and clears the active edit state.
 function closeLureForm() {
   if (savingLure.value) return
   lureModalOpen.value = false
@@ -197,6 +248,7 @@ function closeLureForm() {
   lureFormIsEdit.value = false
 }
 
+// Validates and persists the lure form; takes no input and updates success/error state after saving.
 async function saveLure() {
   const name = lureName.value.trim()
   if (!name) {
@@ -232,6 +284,7 @@ async function saveLure() {
   }
 }
 
+// Confirms and removes/hides a lure from inventory; accepts its summary and preserves trip catch history.
 async function removeLure(lure: LureSummary) {
   if (!window.confirm(`Remove "${lure.name}" from your tacklebox? It will be hidden here, but trip logs and catch history will be kept.`)) return
 
@@ -248,11 +301,13 @@ async function removeLure(lure: LureSummary) {
   }
 }
 
+// Formats a stored date for display; accepts a YYYY-MM-DD value and returns a localized date string.
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' })
     .format(new Date(`${value}T12:00:00`))
 }
 
+// Opens a new or edit rod dialog; accepts an optional saved rod and populates the form state.
 function openRodForm(rod: TackleboxRod | null = null) {
   editingRod.value = rod
   rodName.value = rod?.name ?? ''
@@ -266,12 +321,14 @@ function openRodForm(rod: TackleboxRod | null = null) {
   rodModalOpen.value = true
 }
 
+// Closes the rod dialog unless a save is in progress; takes no input and clears the active edit state.
 function closeRodForm() {
   if (savingRod.value) return
   rodModalOpen.value = false
   editingRod.value = null
 }
 
+// Validates and persists the rod form; takes no input and reports the result through page state.
 async function saveRod() {
   const name = rodName.value.trim()
   if (!name) {
@@ -306,6 +363,7 @@ async function saveRod() {
   }
 }
 
+// Confirms and deletes a saved rod; accepts the rod and retains historical trip records.
 async function removeRod(rod: TackleboxRod) {
   if (!window.confirm(`Remove "${rod.name}" from your tacklebox? Past trip logs will be kept.`)) return
 
@@ -321,6 +379,7 @@ async function removeRod(rod: TackleboxRod) {
   }
 }
 
+// Opens a new or edit reel dialog; accepts an optional saved reel and populates the form state.
 function openReelForm(reel: TackleboxReel | null = null) {
   editingReel.value = reel
   reelName.value = reel?.name ?? ''
@@ -334,12 +393,14 @@ function openReelForm(reel: TackleboxReel | null = null) {
   reelModalOpen.value = true
 }
 
+// Closes the reel dialog unless a save is in progress; takes no input and clears the active edit state.
 function closeReelForm() {
   if (savingReel.value) return
   reelModalOpen.value = false
   editingReel.value = null
 }
 
+// Validates and persists the reel form; takes no input and reports the result through page state.
 async function saveReel() {
   const name = reelName.value.trim()
   if (!name) {
@@ -374,6 +435,7 @@ async function saveReel() {
   }
 }
 
+// Confirms and deletes a saved reel; accepts the reel and reports persistence errors through page state.
 async function removeReel(reel: TackleboxReel) {
   if (!window.confirm(`Remove "${reel.name}" from your tacklebox?`)) return
 
@@ -403,7 +465,6 @@ async function removeReel(reel: TackleboxReel) {
         <h1>Your tacklebox</h1>
         <p class="subtitle">Keep track of your lures, rods, and reels, and see what you've caught with them.</p>
       </div>
-      <button class="primary-button" type="button" @click="openLureForm()"><span class="plus">＋</span> Add a lure</button>
     </section>
 
     <div v-if="error" class="auth-message auth-error" role="alert">{{ error }}</div>
@@ -417,24 +478,58 @@ async function removeReel(reel: TackleboxReel) {
         <div><h2>Your rods</h2><p>Optionally add a rod to each trip log.</p></div>
         <button class="secondary-button" type="button" @click="openRodForm()">＋ Add a rod</button>
       </div>
-      <div v-if="data.tackleboxRods.length" class="rod-grid">
-        <article v-for="rod in data.tackleboxRods" :key="rod.id" class="panel rod-card">
-          <div class="rod-card-icon" aria-hidden="true">🎣</div>
-          <div class="rod-card-copy">
-            <h3>{{ rod.name }}</h3>
-            <p>{{ [rod.brand, rod.type && `${rod.type} rod`, rod.length, rod.power, rod.action].filter(Boolean).join(' · ') || 'Rod details not added' }}</p>
-            <p v-if="rod.notes" class="rod-note">{{ rod.notes }}</p>
+      <div v-if="rodCards.length" class="rod-grid">
+        <article v-for="rod in rodCards" :key="rod.id" class="panel lure-card">
+          <header class="lure-card-header">
+            <div class="lure-icon" aria-hidden="true">🎣</div>
+            <div class="lure-title">
+              <h2>{{ rod.name }}</h2>
+              <p>Used on {{ rod.usage.tripCount }} {{ rod.usage.tripCount === 1 ? 'trip' : 'trips' }}</p>
+            </div>
+            <div class="lure-actions">
+              <button class="lure-action" type="button" @click="openRodForm(rod)">Edit</button>
+              <button
+                class="lure-action lure-remove"
+                type="button"
+                :disabled="deletingRodId !== null"
+                :aria-label="`Remove ${rod.name} from tacklebox`"
+                @click="removeRod(rod)"
+              >{{ deletingRodId === rod.id ? '…' : '×' }}</button>
+              <div class="lure-total">
+                <strong>{{ rod.usage.totalCatches }}</strong>
+                <span>{{ rod.usage.totalCatches === 1 ? 'catch' : 'catches' }}</span>
+              </div>
+            </div>
+          </header>
+
+          <dl v-if="rod.brand || rod.type || rod.length || rod.power || rod.action" class="lure-details">
+            <div v-if="rod.brand"><dt>Brand</dt><dd>{{ rod.brand }}</dd></div>
+            <div v-if="rod.type"><dt>Type</dt><dd>{{ rod.type }}</dd></div>
+            <div v-if="rod.length"><dt>Length</dt><dd>{{ rod.length }}</dd></div>
+            <div v-if="rod.power"><dt>Power</dt><dd>{{ rod.power }}</dd></div>
+            <div v-if="rod.action"><dt>Action</dt><dd>{{ rod.action }}</dd></div>
+          </dl>
+
+          <div v-if="rod.notes" class="lure-notes">
+            <span class="detail-label">Notes</span>
+            <span>{{ rod.notes }}</span>
           </div>
-          <div class="rod-card-actions">
-            <button class="lure-action" type="button" @click="openRodForm(rod)">Edit</button>
-            <button
-              class="lure-action lure-remove"
-              type="button"
-              :disabled="deletingRodId !== null"
-              :aria-label="`Remove ${rod.name} from tacklebox`"
-              @click="removeRod(rod)"
-            >{{ deletingRodId === rod.id ? '…' : '×' }}</button>
-          </div>
+
+          <section class="species-results" :aria-label="`Catches with ${rod.name}`">
+            <h3>What you've caught</h3>
+            <ul v-if="rod.usage.species.length">
+              <li v-for="item in rod.usage.species" :key="item.species">
+                <span>{{ item.species }}</span>
+                <strong>{{ item.quantity }} caught</strong>
+              </li>
+            </ul>
+            <p v-else class="no-linked-catches">No catches linked to this rod yet. Select it when logging a trip to track its catches.</p>
+          </section>
+
+          <footer class="lure-card-footer">
+            <span>{{ rod.usage.lastUsed ? `Last used ${formatDate(rod.usage.lastUsed)}` : 'Not used on a logged trip yet' }}</span>
+            <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
+          </footer>
         </article>
       </div>
       <p v-else class="rod-empty">No saved rods yet. You can add one here or enter a rod name directly when logging a trip.</p>
@@ -445,90 +540,130 @@ async function removeReel(reel: TackleboxReel) {
         <div><h2>Your reels</h2><p>Keep track of the reels in your setup.</p></div>
         <button class="secondary-button" type="button" @click="openReelForm()">＋ Add a reel</button>
       </div>
-      <div v-if="data.tackleboxReels.length" class="reel-grid">
-        <article v-for="reel in data.tackleboxReels" :key="reel.id" class="panel reel-card">
-          <div class="reel-card-icon" aria-hidden="true">◉</div>
-          <div class="reel-card-copy">
-            <h3>{{ reel.name }}</h3>
-            <p>{{ [reel.brand, reel.type && `${reel.type} reel`, reel.size && `Size ${reel.size}`, reel.gearRatio && `${reel.gearRatio}:1`, reel.retrieve].filter(Boolean).join(' · ') || 'Reel details not added' }}</p>
-            <p v-if="reel.notes" class="reel-note">{{ reel.notes }}</p>
+      <div v-if="reelCards.length" class="reel-grid">
+        <article v-for="reel in reelCards" :key="reel.id" class="panel lure-card">
+          <header class="lure-card-header">
+            <div class="lure-icon" aria-hidden="true">◉</div>
+            <div class="lure-title">
+              <h2>{{ reel.name }}</h2>
+              <p>Used on {{ reel.usage.tripCount }} {{ reel.usage.tripCount === 1 ? 'trip' : 'trips' }}</p>
+            </div>
+            <div class="lure-actions">
+              <button class="lure-action" type="button" @click="openReelForm(reel)">Edit</button>
+              <button
+                class="lure-action lure-remove"
+                type="button"
+                :disabled="deletingReelId !== null"
+                :aria-label="`Remove ${reel.name} from tacklebox`"
+                @click="removeReel(reel)"
+              >{{ deletingReelId === reel.id ? '…' : '×' }}</button>
+              <div class="lure-total">
+                <strong>{{ reel.usage.totalCatches }}</strong>
+                <span>{{ reel.usage.totalCatches === 1 ? 'catch' : 'catches' }}</span>
+              </div>
+            </div>
+          </header>
+
+          <dl v-if="reel.brand || reel.type || reel.size || reel.gearRatio || reel.retrieve" class="lure-details">
+            <div v-if="reel.brand"><dt>Brand</dt><dd>{{ reel.brand }}</dd></div>
+            <div v-if="reel.type"><dt>Type</dt><dd>{{ reel.type }}</dd></div>
+            <div v-if="reel.size"><dt>Size</dt><dd>{{ reel.size }}</dd></div>
+            <div v-if="reel.gearRatio"><dt>Gear ratio</dt><dd>{{ reel.gearRatio }}:1</dd></div>
+            <div v-if="reel.retrieve"><dt>Retrieve</dt><dd>{{ reel.retrieve }}</dd></div>
+          </dl>
+
+          <div v-if="reel.notes" class="lure-notes">
+            <span class="detail-label">Notes</span>
+            <span>{{ reel.notes }}</span>
           </div>
-          <div class="reel-card-actions">
-            <button class="lure-action" type="button" @click="openReelForm(reel)">Edit</button>
-            <button
-              class="lure-action lure-remove"
-              type="button"
-              :disabled="deletingReelId !== null"
-              :aria-label="`Remove ${reel.name} from tacklebox`"
-              @click="removeReel(reel)"
-            >{{ deletingReelId === reel.id ? '…' : '×' }}</button>
-          </div>
+
+          <section class="species-results" :aria-label="`Catches with ${reel.name}`">
+            <h3>What you've caught</h3>
+            <ul v-if="reel.usage.species.length">
+              <li v-for="item in reel.usage.species" :key="item.species">
+                <span>{{ item.species }}</span>
+                <strong>{{ item.quantity }} caught</strong>
+              </li>
+            </ul>
+            <p v-else class="no-linked-catches">No catches linked to this reel yet. Select it when logging a trip to track its catches.</p>
+          </section>
+
+          <footer class="lure-card-footer">
+            <span>{{ reel.usage.lastUsed ? `Last used ${formatDate(reel.usage.lastUsed)}` : 'Not used on a logged trip yet' }}</span>
+            <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
+          </footer>
         </article>
       </div>
       <p v-else class="rod-empty">No saved reels yet. Add a reel to keep its specs handy.</p>
     </section>
 
-    <div v-if="loading" class="panel empty-state empty-panel">Loading your tacklebox…</div>
-    <div v-else-if="lureSummaries.length" class="tackle-grid">
-      <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
-        <header class="lure-card-header">
-          <div class="lure-icon" aria-hidden="true">⌁</div>
-          <div class="lure-title">
-            <h2>{{ lure.name }}</h2>
-            <p>Used on {{ lure.tripCount }} {{ lure.tripCount === 1 ? 'trip' : 'trips' }}</p>
-          </div>
-          <div class="lure-actions">
-            <button class="lure-action" type="button" @click="openLureForm(lure.inventoryLure ?? null, lure.name)">Edit</button>
-            <button
-              class="lure-action lure-remove"
-              type="button"
-              :disabled="deletingLureKey !== null"
-              :aria-label="`Remove ${lure.name} from tacklebox`"
-              @click="removeLure(lure)"
-            >{{ deletingLureKey === lure.key ? '…' : '×' }}</button>
-            <div class="lure-total">
-              <strong>{{ lure.totalCatches }}</strong>
-              <span>{{ lure.totalCatches === 1 ? 'catch' : 'catches' }}</span>
+    <section class="lure-inventory">
+      <div class="section-heading">
+        <div><h2>Your lures</h2><p>See which lures have been working on your trips.</p></div>
+        <button class="secondary-button" type="button" @click="openLureForm()">＋ Add a lure</button>
+      </div>
+      <div v-if="loading" class="panel empty-state empty-panel">Loading your tacklebox…</div>
+      <div v-else-if="lureSummaries.length" class="tackle-grid">
+        <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
+          <header class="lure-card-header">
+            <div class="lure-icon" aria-hidden="true">⌁</div>
+            <div class="lure-title">
+              <h2>{{ lure.name }}</h2>
+              <p>Used on {{ lure.tripCount }} {{ lure.tripCount === 1 ? 'trip' : 'trips' }}</p>
             </div>
+            <div class="lure-actions">
+              <button class="lure-action" type="button" @click="openLureForm(lure.inventoryLure ?? null, lure.name)">Edit</button>
+              <button
+                class="lure-action lure-remove"
+                type="button"
+                :disabled="deletingLureKey !== null"
+                :aria-label="`Remove ${lure.name} from tacklebox`"
+                @click="removeLure(lure)"
+              >{{ deletingLureKey === lure.key ? '…' : '×' }}</button>
+              <div class="lure-total">
+                <strong>{{ lure.totalCatches }}</strong>
+                <span>{{ lure.totalCatches === 1 ? 'catch' : 'catches' }}</span>
+              </div>
+            </div>
+          </header>
+
+          <dl v-if="lure.inventoryLure && (lure.inventoryLure.brand || lure.inventoryLure.type || lure.inventoryLure.color || lure.inventoryLure.size)" class="lure-details">
+            <div v-if="lure.inventoryLure.brand"><dt>Brand</dt><dd>{{ lure.inventoryLure.brand }}</dd></div>
+            <div v-if="lure.inventoryLure.type"><dt>Type</dt><dd>{{ lure.inventoryLure.type }}</dd></div>
+            <div v-if="lure.inventoryLure.color"><dt>Color</dt><dd><span class="color-dot" />{{ lure.inventoryLure.color }}</dd></div>
+            <div v-if="lure.inventoryLure.size"><dt>Size / weight</dt><dd>{{ lure.inventoryLure.size }}</dd></div>
+          </dl>
+
+          <div v-if="lure.inventoryLure?.notes || lure.tripNotes.length" class="lure-notes">
+            <span class="detail-label">Notes</span>
+            <span v-if="lure.inventoryLure?.notes">{{ lure.inventoryLure.notes }}</span>
+            <span v-if="lure.tripNotes.length" class="trip-notes">{{ lure.tripNotes.join(' · ') }}</span>
           </div>
-        </header>
 
-        <dl v-if="lure.inventoryLure && (lure.inventoryLure.brand || lure.inventoryLure.type || lure.inventoryLure.color || lure.inventoryLure.size)" class="lure-details">
-          <div v-if="lure.inventoryLure.brand"><dt>Brand</dt><dd>{{ lure.inventoryLure.brand }}</dd></div>
-          <div v-if="lure.inventoryLure.type"><dt>Type</dt><dd>{{ lure.inventoryLure.type }}</dd></div>
-          <div v-if="lure.inventoryLure.color"><dt>Color</dt><dd><span class="color-dot" />{{ lure.inventoryLure.color }}</dd></div>
-          <div v-if="lure.inventoryLure.size"><dt>Size / weight</dt><dd>{{ lure.inventoryLure.size }}</dd></div>
-        </dl>
+          <section class="species-results" :aria-label="`Catches on ${lure.name}`">
+            <h3>What you've caught</h3>
+            <ul v-if="lure.species.length">
+              <li v-for="item in lure.species" :key="item.species">
+                <span>{{ item.species }}</span>
+                <strong>{{ item.quantity }} caught</strong>
+              </li>
+            </ul>
+            <p v-else class="no-linked-catches">No catches linked to this lure yet. Choose it from your tacklebox when logging a trip.</p>
+          </section>
 
-        <div v-if="lure.inventoryLure?.notes || lure.tripNotes.length" class="lure-notes">
-          <span class="detail-label">Notes</span>
-          <span v-if="lure.inventoryLure?.notes">{{ lure.inventoryLure.notes }}</span>
-          <span v-if="lure.tripNotes.length" class="trip-notes">{{ lure.tripNotes.join(' · ') }}</span>
-        </div>
-
-        <section class="species-results" :aria-label="`Catches on ${lure.name}`">
-          <h3>What you've caught</h3>
-          <ul v-if="lure.species.length">
-            <li v-for="item in lure.species" :key="item.species">
-              <span>{{ item.species }}</span>
-              <strong>{{ item.quantity }} caught</strong>
-            </li>
-          </ul>
-          <p v-else class="no-linked-catches">No catches linked to this lure yet. Choose it from your tacklebox when logging a trip.</p>
-        </section>
-
-        <footer class="lure-card-footer">
-          <span>{{ lure.lastUsed ? `Last used ${formatDate(lure.lastUsed)}` : 'Not used on a logged trip yet' }}</span>
-          <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
-        </footer>
-      </article>
-    </div>
-    <div v-else class="panel empty-state empty-panel">
-      <span>⌁</span>
-      <strong>Your tacklebox is empty for now.</strong>
-      <span>Add a lure to keep its color and other details, then select it when logging a trip.</span>
-      <button class="primary-button" type="button" @click="openLureForm()">＋ Add your first lure</button>
-    </div>
+          <footer class="lure-card-footer">
+            <span>{{ lure.lastUsed ? `Last used ${formatDate(lure.lastUsed)}` : 'Not used on a logged trip yet' }}</span>
+            <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
+          </footer>
+        </article>
+      </div>
+      <div v-else class="panel empty-state empty-panel">
+        <span>⌁</span>
+        <strong>Your tacklebox is empty for now.</strong>
+        <span>Add a lure to keep its color and other details, then select it when logging a trip.</span>
+        <button class="primary-button" type="button" @click="openLureForm()">＋ Add your first lure</button>
+      </div>
+    </section>
   </div>
 
   <Teleport to="body">
@@ -687,59 +822,44 @@ async function removeReel(reel: TackleboxReel) {
 
 <style scoped>
 .tackle-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.rod-inventory { margin: 0 0 26px; }
-.reel-inventory { margin: 0 0 26px; }
-.rod-inventory .section-heading,.reel-inventory .section-heading { align-items: center; }
-.rod-inventory .section-heading h2,.reel-inventory .section-heading h2 { font: 700 15px Manrope, sans-serif; margin: 0 0 4px; }
-.rod-inventory .section-heading p,.reel-inventory .section-heading p { color: #89958e; font-size: 10px; margin: 0; }
-.rod-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.reel-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.rod-card { align-items: center; display: flex; gap: 11px; min-width: 0; padding: 13px; }
-.reel-card { align-items: center; display: flex; gap: 11px; min-width: 0; padding: 13px; }
-.rod-card-icon { align-items: center; background: #eaf2ec; border-radius: 9px; display: flex; flex: 0 0 38px; height: 38px; justify-content: center; }
-.reel-card-icon { align-items: center; background: #eaf2ec; border-radius: 9px; display: flex; flex: 0 0 38px; height: 38px; justify-content: center; }
-.rod-card-copy { min-width: 0; }
-.reel-card-copy { min-width: 0; }
-.rod-card-copy h3 { color: #34433a; font-size: 11px; margin: 0 0 4px; overflow-wrap: anywhere; }
-.reel-card-copy h3 { color: #34433a; font-size: 11px; margin: 0 0 4px; overflow-wrap: anywhere; }
-.rod-card-copy p { color: #819087; font-size: 9px; line-height: 1.45; margin: 0; }
-.reel-card-copy p { color: #819087; font-size: 9px; line-height: 1.45; margin: 0; }
-.rod-card-copy .rod-note { margin-top: 4px; }
-.reel-card-copy .reel-note { margin-top: 4px; }
-.rod-card-actions { display: flex; gap: 5px; margin-left: auto; }
-.reel-card-actions { display: flex; gap: 5px; margin-left: auto; }
-.rod-empty { background: #f5f7f4; border-radius: 8px; color: #89958e; font-size: 10px; margin: 0; padding: 12px 14px; }
+.rod-inventory,.reel-inventory,.lure-inventory { background: #fff; border: 1px solid #e4e9e3; border-radius: 12px; margin: 0 0 20px; padding: 18px; }
+.rod-inventory .section-heading,.reel-inventory .section-heading,.lure-inventory .section-heading { align-items: center; gap: 12px; }
+.rod-inventory .section-heading h2,.reel-inventory .section-heading h2,.lure-inventory .section-heading h2 { font: 700 15px Manrope, sans-serif; margin: 0 0 4px; }
+.rod-inventory .section-heading p,.reel-inventory .section-heading p,.lure-inventory .section-heading p { color: #89958e; font-size: 12px; margin: 0; }
+.rod-inventory .section-heading .secondary-button,.reel-inventory .section-heading .secondary-button,.lure-inventory .section-heading .secondary-button { flex: 0 0 auto; white-space: nowrap; }
+.rod-grid,.reel-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rod-empty { background: #f5f7f4; border-radius: 8px; color: #89958e; font-size: 12px; margin: 0; padding: 12px 14px; }
 .lure-card { min-width: 0; overflow: hidden; padding: 17px; }
 .lure-card-header { align-items: center; display: flex; gap: 11px; }
 .lure-icon { align-items: center; background: #eaf2ec; border-radius: 10px; color: #4b765a; display: flex; flex: 0 0 42px; font-size: 23px; height: 42px; justify-content: center; }
 .lure-title { min-width: 0; }
 .lure-title h2 { font: 700 14px Manrope, sans-serif; margin: 0 0 4px; overflow-wrap: anywhere; }
-.lure-title p { color: #8a9690; font-size: 10px; margin: 0; }
+.lure-title p { color: #8a9690; font-size: 12px; margin: 0; }
 .lure-actions { align-items: center; display: flex; gap: 5px; margin-left: auto; }
-.lure-action { background: #f7f8f5; border: 1px solid #e4e9e3; border-radius: 6px; color: #536158; font-size: 10px; min-height: 32px; padding: 4px 8px; }
+.lure-action { background: #f7f8f5; border: 1px solid #e4e9e3; border-radius: 6px; color: #536158; font-size: 12px; min-height: 32px; padding: 4px 8px; }
 .lure-action:hover:not(:disabled) { border-color: #a6b9a8; }
 .lure-remove { color: #985b45; font-size: 17px; min-width: 32px; }
 .lure-action:disabled { cursor: wait; opacity: .55; }
 .lure-total { display: grid; margin-left: 5px; min-width: 40px; text-align: right; }
 .lure-total strong { color: #315f48; font: 700 18px Manrope, sans-serif; }
-.lure-total span { color: #8a9690; font-size: 9px; }
+.lure-total span { color: #8a9690; font-size: 12px; }
 .lure-details { border-top: 1px solid #f0f2ee; display: grid; gap: 9px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 0 0; padding-top: 12px; }
 .lure-details div { min-width: 0; }
-.lure-details dt { color: #8a9690; font-size: 9px; margin-bottom: 3px; }
-.lure-details dd { align-items: center; color: #536158; display: flex; font-size: 10px; gap: 6px; margin: 0; overflow-wrap: anywhere; }
+.lure-details dt { color: #8a9690; font-size: 12px; margin-bottom: 3px; }
+.lure-details dd { align-items: center; color: #536158; display: flex; font-size: 12px; gap: 6px; margin: 0; overflow-wrap: anywhere; }
 .color-dot { background: #d9e4d9; border: 1px solid #c5d1c5; border-radius: 50%; flex: 0 0 10px; height: 10px; }
-.lure-notes { border-top: 1px solid #f0f2ee; color: #718078; display: grid; font-size: 10px; gap: 5px; line-height: 1.5; margin-top: 14px; padding-top: 12px; }
+.lure-notes { border-top: 1px solid #f0f2ee; color: #718078; display: grid; font-size: 12px; gap: 5px; line-height: 1.5; margin-top: 14px; padding-top: 12px; }
 .trip-notes { color: #89958e; }
-.detail-label { color: #536158; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.detail-label { color: #536158; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .species-results { border-top: 1px solid #f0f2ee; margin-top: 14px; padding-top: 12px; }
-.species-results h3 { color: #536158; font-size: 10px; font-weight: 700; margin: 0 0 8px; }
+.species-results h3 { color: #536158; font-size: 12px; font-weight: 700; margin: 0 0 8px; }
 .species-results ul { list-style: none; margin: 0; padding: 0; }
-.species-results li { align-items: center; border-bottom: 1px solid #f4f5f2; color: #39483f; display: flex; font-size: 11px; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.species-results li { align-items: center; border-bottom: 1px solid #f4f5f2; color: #39483f; display: flex; font-size: 12px; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .species-results li:last-child { border-bottom: 0; }
-.species-results li strong { color: #75827a; font-size: 10px; white-space: nowrap; }
-.no-linked-catches { color: #8a9690; font-size: 10px; line-height: 1.55; margin: 0; }
-.lure-card-footer { align-items: center; border-top: 1px solid #f0f2ee; color: #89958e; display: flex; font-size: 9px; justify-content: space-between; margin-top: 9px; padding-top: 11px; }
-.lure-card-footer a { color: #63836d; font-size: 10px; font-weight: 600; }
+.species-results li strong { color: #75827a; font-size: 12px; white-space: nowrap; }
+.no-linked-catches { color: #8a9690; font-size: 12px; line-height: 1.55; margin: 0; }
+.lure-card-footer { align-items: center; border-top: 1px solid #f0f2ee; color: #89958e; display: flex; font-size: 12px; justify-content: space-between; margin-top: 9px; padding-top: 11px; }
+.lure-card-footer a { color: #63836d; font-size: 12px; font-weight: 600; }
 .lure-card-footer a:hover { color: #244e3d; }
 .empty-panel { gap: 9px; padding: 36px 20px; }
 .empty-panel .primary-button { margin-top: 5px; }
@@ -753,6 +873,5 @@ async function removeReel(reel: TackleboxReel) {
   .lure-card-header { align-items: flex-start; flex-wrap: wrap; }
   .lure-actions { flex-wrap: wrap; }
   .lure-modal,.rod-modal,.reel-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
-  .rod-card,.reel-card { align-items: flex-start; }
 }
 </style>

@@ -13,6 +13,7 @@ export interface OfflineTripRecord {
 const databaseName = 'tidelog-offline'
 const storeName = 'pendingTrips'
 
+// Opens or creates the local IndexedDB queue; takes no input and resolves with the database connection.
 function openQueueDatabase(): Promise<IDBDatabase> {
   if (!import.meta.client || !('indexedDB' in window)) {
     return Promise.reject(new Error('Offline saving is not supported by this browser.'))
@@ -32,6 +33,7 @@ function openQueueDatabase(): Promise<IDBDatabase> {
   })
 }
 
+// Runs one operation against the offline queue; accepts transaction mode and store operation and returns its result.
 async function runQueueTransaction<T>(
   mode: IDBTransactionMode,
   run: (store: IDBObjectStore) => IDBRequest<T>
@@ -58,15 +60,18 @@ async function runQueueTransaction<T>(
   })
 }
 
+// Lists local pending trips belonging to one user; accepts the UID and returns matching queue records.
 export async function listOfflineTrips(userId: string): Promise<OfflineTripRecord[]> {
   const records = await runQueueTransaction<OfflineTripRecord[]>('readonly', store => store.getAll())
   return records.filter(record => record.userId === userId)
 }
 
+// Stores or replaces a pending trip locally; accepts a complete queue record and resolves after persistence.
 export async function saveOfflineTrip(record: OfflineTripRecord): Promise<void> {
   await runQueueTransaction<IDBValidKey>('readwrite', store => store.put(record))
 }
 
+// Removes one pending trip from local storage; accepts user/trip IDs and resolves after deletion.
 export async function removeOfflineTrip(userId: string, tripId: string): Promise<void> {
   await runQueueTransaction<undefined>('readwrite', store => store.delete(`${userId}:${tripId}`))
 }

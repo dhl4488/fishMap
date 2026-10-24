@@ -17,6 +17,7 @@ onMounted(async () => {
   if (user.value) await router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
 })
 
+// Authenticates or creates the account from form fields; takes no input and navigates on success or sets an error.
 async function submit() {
   errorMessage.value = ''
   submitting.value = true
@@ -87,9 +88,9 @@ async function submit() {
 .auth-field { margin-bottom: 14px; }
 .auth-submit { margin-top: 5px; width: 100%; }
 .auth-submit:disabled { cursor: not-allowed; opacity: .55; }
-.auth-message { border-radius: 8px; font-size: 11px; line-height: 1.55; margin: 0 0 15px; padding: 10px 12px; }
+.auth-message { border-radius: 8px; font-size: 12px; line-height: 1.55; margin: 0 0 15px; padding: 10px 12px; }
 .auth-error { background: #fbf0ec; color: #985b45; }
-.auth-error code { font-size: 10px; }
-.auth-switch { color: #839088; font-size: 11px; margin: 20px 0 0; text-align: center; }
+.auth-error code { font-size: 12px; }
+.auth-switch { color: #839088; font-size: 12px; margin: 20px 0 0; text-align: center; }
 .auth-switch button { background: none; border: 0; color: #316b53; font-size: inherit; font-weight: 700; padding: 0 0 0 3px; }
 </style>
