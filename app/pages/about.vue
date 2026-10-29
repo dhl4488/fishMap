@@ -2,7 +2,7 @@
   // Set browser metadata for the about page.
   useHead({ title: 'About Tidelog', meta: [{ name: 'description', content: 'Learn more about Tidelog, the fishing logbook app for anglers.' }] })
 
-  const creatorPhoto = '/assets/creator_photo.jpg'
+  const creatorPhoto = asset('/assets/creator_photo.jpg')
 </script>
 
 <template>

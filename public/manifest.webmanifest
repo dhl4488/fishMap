@@ -1,7 +1,7 @@
 {
   "name": "Tidelog",
   "short_name": "Tidelog",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "theme_color": "#0e2d3a",
   "background_color": "#0e2d3a",

@@ -9,7 +9,7 @@ useHead({
   <main class="landing-page">
     <header class="landing-header">
       <NuxtLink to="/landing" class="landing-brand" aria-label="Tidelog home">
-        <img src="/assets/tide-log-icon.png" alt="">
+        <img :src="asset('/assets/tide-log-icon.png')" alt="">
         <span>tidelog<span class="brand-period">.</span></span>
       </NuxtLink>
       <nav aria-label="Account">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
 
-useHead({ link: [{ rel: 'manifest', href: '/manifest.webmanifest' }] })
+useHead({ link: [{ rel: 'manifest', href: asset('/manifest.webmanifest') }] })
 </script>
 
 <template>

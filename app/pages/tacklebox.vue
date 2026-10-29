@@ -377,7 +377,7 @@ async function removeReel(reel: TackleboxReel) {
         <article v-for="rod in rodCards" :key="rod.id" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="rod.icon" :src="rod.icon" alt="">
+              <img v-if="rod.icon" :src="asset(rod.icon)" alt="">
               <span v-else>🎣</span>
             </div>
             <div class="lure-title">
@@ -442,7 +442,7 @@ async function removeReel(reel: TackleboxReel) {
         <article v-for="reel in reelCards" :key="reel.id" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="reel.icon" :src="reel.icon" alt="">
+              <img v-if="reel.icon" :src="asset(reel.icon)" alt="">
               <span v-else>◉</span>
             </div>
             <div class="lure-title">
@@ -508,7 +508,7 @@ async function removeReel(reel: TackleboxReel) {
         <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="lure.icon" :src="lure.icon" alt="">
+              <img v-if="lure.icon" :src="asset(lure.icon)" alt="">
               <span v-else>⌁</span>
             </div>
             <div class="lure-title">
