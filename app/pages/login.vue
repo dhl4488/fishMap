@@ -41,7 +41,7 @@ async function submit() {
   <main class="auth-page">
     <section class="auth-card">
       <NuxtLink to="/landing" class="brand auth-brand">
-        <img class="brand-mark" src="/assets/tide-log-icon.png" alt="">
+        <img class="brand-mark" :src="asset('/assets/tide-log-icon.png')" alt="">
         <span class="brand-name">tidelog<span class="brand-period">.</span></span>
       </NuxtLink>
       <p class="eyebrow">YOUR DAYS ON THE WATER</p>

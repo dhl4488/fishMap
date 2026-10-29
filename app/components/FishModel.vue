@@ -20,7 +20,7 @@ async function loadModel() {
     // Register the Web Component only in the browser; GLB rendering depends on WebGL.
     await import('@google/model-viewer')
     const viewer = document.createElement('model-viewer')
-    viewer.setAttribute('src', `/assets/models/${filename}`)
+    viewer.setAttribute('src', asset(`/assets/models/${filename}`))
     viewer.setAttribute('alt', `3D model of ${props.species}`)
     viewer.setAttribute('camera-controls', '')
     viewer.setAttribute('auto-rotate', '')
