@@ -17,10 +17,6 @@ const emit = defineEmits<{
   toggleDetails: [catchItem: CatchDraft]
 }>()
 
-// Reports whether any catch row has a species entered; returns a boolean for the empty-state prompt.
-const hasRecordedCatches = computed(() =>
-  props.catches.some(({ species }) => species.trim().length > 0)
-)
 </script>
 
 <template>
@@ -30,7 +26,6 @@ const hasRecordedCatches = computed(() =>
       <button class="text-button" type="button" @click="emit('add')">＋ Add a species</button>
     </div>
     <p class="catch-photo-status-text">Type to search the species list, or enter a species name.</p>
-    <p v-if="!hasRecordedCatches" class="catch-photo-status-text">No catches? Better luck next time!</p>
     <datalist id="ontario-fish-species">
       <option v-for="fish in ontarioFishSpecies" :key="fish" :value="fish" />
     </datalist>

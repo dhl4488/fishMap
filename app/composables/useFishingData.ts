@@ -79,6 +79,12 @@ export interface FishingTrip {
   location: string
   catches: FishingCatch[]
   conditions: string
+  airTemperature?: string
+  waterTemperature?: string
+  windSpeed?: string
+  windDirection?: string
+  cloudCover?: string
+  precipitation?: string
   lures?: FishingLure[]
   rod?: string
   rodId?: string
@@ -189,6 +195,12 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     Array.isArray(trip.catches) &&
     trip.catches.every(isFishingCatch) &&
     typeof trip.conditions === 'string' &&
+    (trip.airTemperature === undefined || typeof trip.airTemperature === 'string') &&
+    (trip.waterTemperature === undefined || typeof trip.waterTemperature === 'string') &&
+    (trip.windSpeed === undefined || typeof trip.windSpeed === 'string') &&
+    (trip.windDirection === undefined || typeof trip.windDirection === 'string') &&
+    (trip.cloudCover === undefined || typeof trip.cloudCover === 'string') &&
+    (trip.precipitation === undefined || typeof trip.precipitation === 'string') &&
     (trip.lures === undefined || (Array.isArray(trip.lures) && trip.lures.every(isFishingLure))) &&
     (trip.rod === undefined || typeof trip.rod === 'string') &&
     (trip.rodId === undefined || typeof trip.rodId === 'string') &&
@@ -655,14 +667,16 @@ export function useFishingData() {
   }
 
   // Creates a tacklebox lure; accepts lure fields and adds the saved record to shared state.
-  async function addTackleboxLure(lure: Omit<TackleboxLure, 'id'>) {
+  async function addTackleboxLure(lure: Omit<TackleboxLure, 'id'>): Promise<TackleboxLure> {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a lure to your tacklebox.')
     const saved = await addDoc(collection(db, 'users', account.uid, 'tackleboxLures'), {
       ...lure,
       createdAt: serverTimestamp()
     })
-    if (user.value?.uid === account.uid) data.value.tackleboxLures.unshift({ ...lure, id: saved.id })
+    const savedLure = { ...lure, id: saved.id }
+    if (user.value?.uid === account.uid) data.value.tackleboxLures.unshift(savedLure)
+    return savedLure
   }
 
   // Updates a tacklebox lure; accepts its ID and fields and refreshes the corresponding shared record.
@@ -707,14 +721,16 @@ export function useFishingData() {
   }
 
   // Creates a tacklebox rod; accepts rod fields and adds the saved record to shared state.
-  async function addTackleboxRod(rod: Omit<TackleboxRod, 'id'>) {
+  async function addTackleboxRod(rod: Omit<TackleboxRod, 'id'>): Promise<TackleboxRod> {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a rod to your tacklebox.')
     const saved = await addDoc(collection(db, 'users', account.uid, 'tackleboxRods'), {
       ...rod,
       createdAt: serverTimestamp()
     })
-    if (user.value?.uid === account.uid) data.value.tackleboxRods.unshift({ ...rod, id: saved.id })
+    const savedRod = { ...rod, id: saved.id }
+    if (user.value?.uid === account.uid) data.value.tackleboxRods.unshift(savedRod)
+    return savedRod
   }
 
   // Updates a tacklebox rod; accepts its ID and fields and refreshes the corresponding shared record.
@@ -740,14 +756,16 @@ export function useFishingData() {
   }
 
   // Creates a tacklebox reel; accepts reel fields and adds the saved record to shared state.
-  async function addTackleboxReel(reel: Omit<TackleboxReel, 'id'>) {
+  async function addTackleboxReel(reel: Omit<TackleboxReel, 'id'>): Promise<TackleboxReel> {
     const account = user.value
     if (!account || !db) throw new Error('Sign in before adding a reel to your tacklebox.')
     const saved = await addDoc(collection(db, 'users', account.uid, 'tackleboxReels'), {
       ...reel,
       createdAt: serverTimestamp()
     })
-    if (user.value?.uid === account.uid) data.value.tackleboxReels.unshift({ ...reel, id: saved.id })
+    const savedReel = { ...reel, id: saved.id }
+    if (user.value?.uid === account.uid) data.value.tackleboxReels.unshift(savedReel)
+    return savedReel
   }
 
   // Updates a tacklebox reel; accepts its ID and fields and refreshes the corresponding shared record.

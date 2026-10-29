@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
+import { lureTypes, reelTypes, rodTypes } from '../utils/tackleboxGear'
 
 useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lures, rods, and reels and see what you have caught with them.' }] })
 
@@ -27,6 +28,7 @@ interface LureSummary {
   key: string
   name: string
   inventoryLure?: TackleboxLure
+  icon?: string
   tripNotes: string[]
   tripIds: Set<string>
   lastUsed: string
@@ -41,75 +43,24 @@ interface GearTripSummary {
   species: LureCatchSummary[]
 }
 
-const lureTypes = [
-  'Crankbait',
-  'Jerkbait',
-  'Spinnerbait',
-  'Inline spinner',
-  'Spoon',
-  'Jig',
-  'Soft plastic',
-  'Swimbait',
-  'Topwater',
-  'Fly',
-  'Live bait',
-  'Other'
-]
-
 const lureModalOpen = ref(false)
 const editingLure = ref<TackleboxLure | null>(null)
 const lureFormIsEdit = ref(false)
+const lureInitialName = ref('')
 const savingLure = ref(false)
 const deletingLureKey = ref<string | null>(null)
 const actionError = ref('')
 const successMessage = ref('')
-const lureName = ref('')
-const lureBrand = ref('')
-const lureType = ref('')
-const lureColor = ref('')
-const lureSize = ref('')
-const lureNotes = ref('')
 const rodModalOpen = ref(false)
 const editingRod = ref<TackleboxRod | null>(null)
 const savingRod = ref(false)
 const deletingRodId = ref<string | null>(null)
 const rodActionError = ref('')
-const rodName = ref('')
-const rodBrand = ref('')
-const rodType = ref('')
-const rodLength = ref('')
-const rodPower = ref('')
-const rodAction = ref('')
-const rodNotes = ref('')
 const reelModalOpen = ref(false)
 const editingReel = ref<TackleboxReel | null>(null)
 const savingReel = ref(false)
 const deletingReelId = ref<string | null>(null)
 const reelActionError = ref('')
-const reelName = ref('')
-const reelBrand = ref('')
-const reelType = ref('')
-const reelSize = ref('')
-const reelGearRatio = ref('')
-const reelRetrieve = ref('')
-const reelNotes = ref('')
-
-const rodTypes = [
-  { value: 'Spinning', label: 'Spinning rod' },
-  { value: 'Casting', label: 'Casting rod' },
-  { value: 'Fly', label: 'Fly rod' },
-  { value: 'Telescopic', label: 'Telescopic rod' },
-  { value: 'Ice fishing', label: 'Ice fishing rod' },
-  { value: 'Other', label: 'Other rod' }
-]
-const reelTypes = [
-  { value: 'Spinning', label: 'Spinning reel' },
-  { value: 'Baitcasting', label: 'Baitcasting reel' },
-  { value: 'Fly', label: 'Fly reel' },
-  { value: 'Spincast', label: 'Spincast reel' },
-  { value: 'Conventional', label: 'Conventional reel' },
-  { value: 'Other', label: 'Other reel' }
-]
 
 // Resolves a lure's stable inventory/name key; accepts its name and optional ID and returns the canonical key.
 function lureKey(name: string, inventoryLureId?: string) {
@@ -180,6 +131,7 @@ const lureSummaries = computed(() => {
     .filter(summary => !data.value.hiddenTackleboxLures.includes(summary.key))
     .map(summary => ({
       ...summary,
+      icon: lureTypes.find(type => type.value === summary.inventoryLure?.type)?.icon,
       tripCount: summary.tripIds.size,
       species: [...summary.catches.values()].sort((a, b) => b.quantity - a.quantity || a.species.localeCompare(b.species))
     }))
@@ -216,12 +168,14 @@ function gearTripSummary(kind: 'rod' | 'reel', id: string, name: string): GearTr
 // Builds rod cards with their usage summaries; returns gear fields alongside trip/catch history.
 const rodCards = computed(() => data.value.tackleboxRods.map(rod => ({
   ...rod,
+  icon: rodTypes.find(type => type.value === rod.type)?.icon,
   usage: gearTripSummary('rod', rod.id, rod.name)
 })))
 
 // Builds reel cards with their usage summaries; returns gear fields alongside trip/catch history.
 const reelCards = computed(() => data.value.tackleboxReels.map(reel => ({
   ...reel,
+  icon: reelTypes.find(type => type.value === reel.type)?.icon,
   usage: gearTripSummary('reel', reel.id, reel.name)
 })))
 
@@ -229,12 +183,7 @@ const reelCards = computed(() => data.value.tackleboxReels.map(reel => ({
 function openLureForm(lure: TackleboxLure | null = null, name = '') {
   editingLure.value = lure
   lureFormIsEdit.value = lure !== null || name !== ''
-  lureName.value = lure?.name ?? name
-  lureBrand.value = lure?.brand ?? ''
-  lureType.value = lure?.type ?? ''
-  lureColor.value = lure?.color ?? ''
-  lureSize.value = lure?.size ?? ''
-  lureNotes.value = lure?.notes ?? ''
+  lureInitialName.value = name
   actionError.value = ''
   successMessage.value = ''
   lureModalOpen.value = true
@@ -246,26 +195,13 @@ function closeLureForm() {
   lureModalOpen.value = false
   editingLure.value = null
   lureFormIsEdit.value = false
+  lureInitialName.value = ''
 }
 
 // Validates and persists the lure form; takes no input and updates success/error state after saving.
-async function saveLure() {
-  const name = lureName.value.trim()
-  if (!name) {
-    actionError.value = 'Enter a lure name.'
-    return
-  }
-
+async function saveLure(lure: Omit<TackleboxLure, 'id'>) {
   savingLure.value = true
   actionError.value = ''
-  const lure = {
-    name,
-    brand: lureBrand.value.trim(),
-    type: lureType.value.trim(),
-    color: lureColor.value.trim(),
-    size: lureSize.value.trim(),
-    notes: lureNotes.value.trim()
-  }
   try {
     if (editingLure.value) {
       await updateTackleboxLure(editingLure.value.id, lure)
@@ -277,6 +213,7 @@ async function saveLure() {
     lureModalOpen.value = false
     editingLure.value = null
     lureFormIsEdit.value = false
+    lureInitialName.value = ''
   } catch (error) {
     actionError.value = error instanceof Error ? error.message : 'Could not save this lure.'
   } finally {
@@ -310,13 +247,6 @@ function formatDate(value: string) {
 // Opens a new or edit rod dialog; accepts an optional saved rod and populates the form state.
 function openRodForm(rod: TackleboxRod | null = null) {
   editingRod.value = rod
-  rodName.value = rod?.name ?? ''
-  rodBrand.value = rod?.brand ?? ''
-  rodType.value = rod?.type ?? ''
-  rodLength.value = rod?.length ?? ''
-  rodPower.value = rod?.power ?? ''
-  rodAction.value = rod?.action ?? ''
-  rodNotes.value = rod?.notes ?? ''
   rodActionError.value = ''
   rodModalOpen.value = true
 }
@@ -329,23 +259,9 @@ function closeRodForm() {
 }
 
 // Validates and persists the rod form; takes no input and reports the result through page state.
-async function saveRod() {
-  const name = rodName.value.trim()
-  if (!name) {
-    rodActionError.value = 'Enter a rod name.'
-    return
-  }
+async function saveRod(rod: Omit<TackleboxRod, 'id'>) {
   savingRod.value = true
   rodActionError.value = ''
-  const rod = {
-    name,
-    brand: rodBrand.value.trim(),
-    type: rodType.value.trim(),
-    length: rodLength.value.trim(),
-    power: rodPower.value.trim(),
-    action: rodAction.value.trim(),
-    notes: rodNotes.value.trim()
-  }
   try {
     if (editingRod.value) {
       await updateTackleboxRod(editingRod.value.id, rod)
@@ -382,13 +298,6 @@ async function removeRod(rod: TackleboxRod) {
 // Opens a new or edit reel dialog; accepts an optional saved reel and populates the form state.
 function openReelForm(reel: TackleboxReel | null = null) {
   editingReel.value = reel
-  reelName.value = reel?.name ?? ''
-  reelBrand.value = reel?.brand ?? ''
-  reelType.value = reel?.type ?? ''
-  reelSize.value = reel?.size ?? ''
-  reelGearRatio.value = reel?.gearRatio ?? ''
-  reelRetrieve.value = reel?.retrieve ?? ''
-  reelNotes.value = reel?.notes ?? ''
   reelActionError.value = ''
   reelModalOpen.value = true
 }
@@ -401,23 +310,9 @@ function closeReelForm() {
 }
 
 // Validates and persists the reel form; takes no input and reports the result through page state.
-async function saveReel() {
-  const name = reelName.value.trim()
-  if (!name) {
-    reelActionError.value = 'Enter a reel name.'
-    return
-  }
+async function saveReel(reel: Omit<TackleboxReel, 'id'>) {
   savingReel.value = true
   reelActionError.value = ''
-  const reel = {
-    name,
-    brand: reelBrand.value.trim(),
-    type: reelType.value.trim(),
-    size: reelSize.value.trim(),
-    gearRatio: reelGearRatio.value.trim(),
-    retrieve: reelRetrieve.value.trim(),
-    notes: reelNotes.value.trim()
-  }
   try {
     if (editingReel.value) {
       await updateTackleboxReel(editingReel.value.id, reel)
@@ -481,7 +376,10 @@ async function removeReel(reel: TackleboxReel) {
       <div v-if="rodCards.length" class="rod-grid">
         <article v-for="rod in rodCards" :key="rod.id" class="panel lure-card">
           <header class="lure-card-header">
-            <div class="lure-icon" aria-hidden="true">🎣</div>
+            <div class="lure-icon" aria-hidden="true">
+              <img v-if="rod.icon" :src="rod.icon" alt="">
+              <span v-else>🎣</span>
+            </div>
             <div class="lure-title">
               <h2>{{ rod.name }}</h2>
               <p>Used on {{ rod.usage.tripCount }} {{ rod.usage.tripCount === 1 ? 'trip' : 'trips' }}</p>
@@ -543,7 +441,10 @@ async function removeReel(reel: TackleboxReel) {
       <div v-if="reelCards.length" class="reel-grid">
         <article v-for="reel in reelCards" :key="reel.id" class="panel lure-card">
           <header class="lure-card-header">
-            <div class="lure-icon" aria-hidden="true">◉</div>
+            <div class="lure-icon" aria-hidden="true">
+              <img v-if="reel.icon" :src="reel.icon" alt="">
+              <span v-else>◉</span>
+            </div>
             <div class="lure-title">
               <h2>{{ reel.name }}</h2>
               <p>Used on {{ reel.usage.tripCount }} {{ reel.usage.tripCount === 1 ? 'trip' : 'trips' }}</p>
@@ -606,7 +507,10 @@ async function removeReel(reel: TackleboxReel) {
       <div v-else-if="lureSummaries.length" class="tackle-grid">
         <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
           <header class="lure-card-header">
-            <div class="lure-icon" aria-hidden="true">⌁</div>
+            <div class="lure-icon" aria-hidden="true">
+              <img v-if="lure.icon" :src="lure.icon" alt="">
+              <span v-else>⌁</span>
+            </div>
             <div class="lure-title">
               <h2>{{ lure.name }}</h2>
               <p>Used on {{ lure.tripCount }} {{ lure.tripCount === 1 ? 'trip' : 'trips' }}</p>
@@ -666,158 +570,37 @@ async function removeReel(reel: TackleboxReel) {
     </section>
   </div>
 
-  <Teleport to="body">
-    <div v-if="lureModalOpen" class="modal-backdrop" @click.self="closeLureForm">
-      <form class="modal lure-modal" @submit.prevent="saveLure">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">{{ lureFormIsEdit ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
-            <h2>{{ lureFormIsEdit ? 'Edit lure' : 'Add a lure' }}</h2>
-            <p>Save details once, then select this lure when logging a trip.</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="Close dialog" :disabled="savingLure" @click="closeLureForm">×</button>
-        </div>
-        <p v-if="actionError" class="trip-save-error" role="alert">{{ actionError }}</p>
-        <div class="form-grid">
-          <div class="form-field form-field-full">
-            <label for="tackle-lure-name">Lure name</label>
-            <input id="tackle-lure-name" v-model="lureName" placeholder="e.g. X-Rap 10" required maxlength="80">
-          </div>
-          <div class="form-field">
-            <label for="tackle-lure-brand">Brand</label>
-            <input id="tackle-lure-brand" v-model="lureBrand" placeholder="e.g. Rapala" maxlength="60">
-          </div>
-          <div class="form-field">
-            <label for="tackle-lure-type">Lure type</label>
-            <select id="tackle-lure-type" v-model="lureType">
-              <option value="">Choose a type</option>
-              <option v-for="type in lureTypes" :key="type" :value="type">{{ type }}</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label for="tackle-lure-color">Color / pattern</label>
-            <input id="tackle-lure-color" v-model="lureColor" placeholder="e.g. Perch, silver/blue" maxlength="60">
-          </div>
-          <div class="form-field">
-            <label for="tackle-lure-size">Size / weight</label>
-            <input id="tackle-lure-size" v-model="lureSize" placeholder="e.g. 10 cm, 14 g" maxlength="50">
-          </div>
-          <div class="form-field form-field-full">
-            <label for="tackle-lure-notes">Notes <span style="color:#9aa59e;font-weight:400">(optional)</span></label>
-            <textarea id="tackle-lure-notes" v-model="lureNotes" placeholder="Diving depth, retrieve, hooks, or other reminders…" maxlength="500" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="cancel-button" type="button" :disabled="savingLure" @click="closeLureForm">Cancel</button>
-          <button class="primary-button" type="submit" :disabled="savingLure">{{ savingLure ? 'Saving…' : lureFormIsEdit ? 'Save changes' : 'Add to tacklebox' }}</button>
-        </div>
-      </form>
-    </div>
-  </Teleport>
-  <Teleport to="body">
-    <div v-if="rodModalOpen" class="modal-backdrop" @click.self="closeRodForm">
-      <form class="modal rod-modal" @submit.prevent="saveRod">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">{{ editingRod ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
-            <h2>{{ editingRod ? 'Edit rod' : 'Add a rod' }}</h2>
-            <p>Save your setup once, then select it when logging a trip.</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="Close dialog" :disabled="savingRod" @click="closeRodForm">×</button>
-        </div>
-        <p v-if="rodActionError" class="trip-save-error" role="alert">{{ rodActionError }}</p>
-        <div class="form-grid">
-          <div class="form-field form-field-full">
-            <label for="tackle-rod-name">Rod name</label>
-            <input id="tackle-rod-name" v-model="rodName" placeholder="e.g. St. Croix Bass X" required maxlength="100">
-          </div>
-          <div class="form-field">
-            <label for="tackle-rod-brand">Brand</label>
-            <input id="tackle-rod-brand" v-model="rodBrand" placeholder="e.g. St. Croix" maxlength="60">
-          </div>
-          <div class="form-field">
-            <label for="tackle-rod-type">Rod type</label>
-            <select id="tackle-rod-type" v-model="rodType">
-              <option value="">Choose a type</option>
-              <option v-for="type in rodTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label for="tackle-rod-length">Length</label>
-            <input id="tackle-rod-length" v-model="rodLength" placeholder="e.g. 6 ft 8 in" maxlength="30">
-          </div>
-          <div class="form-field">
-            <label for="tackle-rod-power">Power</label>
-            <input id="tackle-rod-power" v-model="rodPower" placeholder="e.g. Medium-heavy" maxlength="40">
-          </div>
-          <div class="form-field form-field-full">
-            <label for="tackle-rod-action">Action</label>
-            <input id="tackle-rod-action" v-model="rodAction" placeholder="e.g. Fast" maxlength="40">
-          </div>
-          <div class="form-field form-field-full">
-            <label for="tackle-rod-notes">Notes <span style="color:#9aa59e;font-weight:400">(optional)</span></label>
-            <textarea id="tackle-rod-notes" v-model="rodNotes" placeholder="Reel pairing, technique, or other reminders…" maxlength="500" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="cancel-button" type="button" :disabled="savingRod" @click="closeRodForm">Cancel</button>
-          <button class="primary-button" type="submit" :disabled="savingRod">{{ savingRod ? 'Saving…' : editingRod ? 'Save changes' : 'Add to tacklebox' }}</button>
-        </div>
-      </form>
-    </div>
-  </Teleport>
-  <Teleport to="body">
-    <div v-if="reelModalOpen" class="modal-backdrop" @click.self="closeReelForm">
-      <form class="modal reel-modal" @submit.prevent="saveReel">
-        <div class="modal-header">
-          <div>
-            <p class="eyebrow">{{ editingReel ? 'UPDATE YOUR TACKLEBOX' : 'ADD TO YOUR TACKLEBOX' }}</p>
-            <h2>{{ editingReel ? 'Edit reel' : 'Add a reel' }}</h2>
-            <p>Save your reel specs for easy reference.</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="Close dialog" :disabled="savingReel" @click="closeReelForm">×</button>
-        </div>
-        <p v-if="reelActionError" class="trip-save-error" role="alert">{{ reelActionError }}</p>
-        <div class="form-grid">
-          <div class="form-field form-field-full">
-            <label for="tackle-reel-name">Reel name</label>
-            <input id="tackle-reel-name" v-model="reelName" placeholder="e.g. Stradic 2500" required maxlength="100">
-          </div>
-          <div class="form-field">
-            <label for="tackle-reel-brand">Brand</label>
-            <input id="tackle-reel-brand" v-model="reelBrand" placeholder="e.g. Shimano" maxlength="60">
-          </div>
-          <div class="form-field">
-            <label for="tackle-reel-type">Reel type</label>
-            <select id="tackle-reel-type" v-model="reelType">
-              <option value="">Choose a type</option>
-              <option v-for="type in reelTypes" :key="type.value" :value="type.value">{{ type.label }}</option>
-            </select>
-          </div>
-          <div class="form-field">
-            <label for="tackle-reel-size">Size</label>
-            <input id="tackle-reel-size" v-model="reelSize" placeholder="e.g. 2500" maxlength="30">
-          </div>
-          <div class="form-field">
-            <label for="tackle-reel-gear-ratio">Gear ratio</label>
-            <input id="tackle-reel-gear-ratio" v-model="reelGearRatio" placeholder="e.g. 6.2" maxlength="20">
-          </div>
-          <div class="form-field form-field-full">
-            <label for="tackle-reel-retrieve">Retrieve</label>
-            <input id="tackle-reel-retrieve" v-model="reelRetrieve" placeholder="e.g. Left-hand, 35 in per turn" maxlength="50">
-          </div>
-          <div class="form-field form-field-full">
-            <label for="tackle-reel-notes">Notes <span style="color:#9aa59e;font-weight:400">(optional)</span></label>
-            <textarea id="tackle-reel-notes" v-model="reelNotes" placeholder="Line capacity, drag, maintenance, or other reminders…" maxlength="500" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="cancel-button" type="button" :disabled="savingReel" @click="closeReelForm">Cancel</button>
-          <button class="primary-button" type="submit" :disabled="savingReel">{{ savingReel ? 'Saving…' : editingReel ? 'Save changes' : 'Add to tacklebox' }}</button>
-        </div>
-      </form>
-    </div>
-  </Teleport>
+  <TackleboxGearModal
+    v-if="lureModalOpen"
+    kind="lure"
+    :initial="editingLure"
+    :initial-name="lureInitialName"
+    :editing="lureFormIsEdit"
+    :saving="savingLure"
+    :error="actionError"
+    @close="closeLureForm"
+    @save-lure="saveLure"
+  />
+  <TackleboxGearModal
+    v-if="rodModalOpen"
+    kind="rod"
+    :initial="editingRod"
+    :editing="!!editingRod"
+    :saving="savingRod"
+    :error="rodActionError"
+    @close="closeRodForm"
+    @save-rod="saveRod"
+  />
+  <TackleboxGearModal
+    v-if="reelModalOpen"
+    kind="reel"
+    :initial="editingReel"
+    :editing="!!editingReel"
+    :saving="savingReel"
+    :error="reelActionError"
+    @close="closeReelForm"
+    @save-reel="saveReel"
+  />
 </template>
 
 <style scoped>
@@ -832,6 +615,7 @@ async function removeReel(reel: TackleboxReel) {
 .lure-card { min-width: 0; overflow: hidden; padding: 17px; }
 .lure-card-header { align-items: center; display: flex; gap: 11px; }
 .lure-icon { align-items: center; background: #eaf2ec; border-radius: 10px; color: #4b765a; display: flex; flex: 0 0 42px; font-size: 23px; height: 42px; justify-content: center; }
+.lure-icon img { height: 26px; width: 26px; }
 .lure-title { min-width: 0; }
 .lure-title h2 { font: 700 14px Manrope, sans-serif; margin: 0 0 4px; overflow-wrap: anywhere; }
 .lure-title p { color: #8a9690; font-size: 12px; margin: 0; }
@@ -864,7 +648,6 @@ async function removeReel(reel: TackleboxReel) {
 .empty-panel { gap: 9px; padding: 36px 20px; }
 .empty-panel .primary-button { margin-top: 5px; }
 .auth-success { background: #edf5ed; color: #426e4b; }
-.rod-modal,.reel-modal { max-height: calc(100vh - 36px); overflow-y: auto; }
 @media (max-width: 850px) {
   .tackle-grid,.rod-grid,.reel-grid { grid-template-columns: 1fr; }
 }
@@ -872,6 +655,5 @@ async function removeReel(reel: TackleboxReel) {
   .lure-card { padding: 14px; }
   .lure-card-header { align-items: flex-start; flex-wrap: wrap; }
   .lure-actions { flex-wrap: wrap; }
-  .lure-modal,.rod-modal,.reel-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
 }
 </style>

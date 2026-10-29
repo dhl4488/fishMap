@@ -5,6 +5,10 @@ const props = defineProps<{
   rods: TackleboxRod[]
   reels: TackleboxReel[]
 }>()
+const emit = defineEmits<{
+  addRod: []
+  addReel: []
+}>()
 
 const rodName = defineModel<string>('rodName', { default: '' })
 const rodId = defineModel<string>('rodId', { default: '' })
@@ -19,14 +23,7 @@ const waterDepth = defineModel<string>('waterDepth', { default: '' })
 function selectSavedRodById(id: string) {
   const rod = props.rods.find(item => item.id === id)
   rodId.value = rod?.id ?? ''
-  if (rod) rodName.value = rod.name
-}
-
-// Updates a manually entered rod name; accepts the name and clears a mismatched saved-rod ID.
-function updateRodName(value: string) {
-  rodName.value = value
-  const selectedRod = props.rods.find(rod => rod.id === rodId.value)
-  if (!selectedRod || selectedRod.name.trim() !== value.trim()) rodId.value = ''
+  rodName.value = rod?.name ?? ''
 }
 
 // Selects a saved reel by ID; accepts the ID and synchronizes the selected reel name and ID.
@@ -47,15 +44,8 @@ function selectSavedReelById(id: string) {
           {{ rod.name }}{{ rod.brand ? ` · ${rod.brand}` : '' }}
         </option>
       </select>
-      <NuxtLink to="/tacklebox" class="rod-manage-link">Manage rods</NuxtLink>
+      <button class="text-button" type="button" @click="emit('addRod')">＋ Add a rod</button>
     </div>
-    <input
-      :value="rodName"
-      aria-label="Rod name used on this trip"
-      placeholder="Or enter a rod name"
-      maxlength="100"
-      @input="updateRodName(($event.target as HTMLInputElement).value)"
-    >
   </div>
   <div class="form-field form-field-full rod-field">
     <label for="trip-reel">Reel <span>(optional)</span></label>
@@ -66,7 +56,7 @@ function selectSavedReelById(id: string) {
           {{ reel.name }}{{ reel.brand ? ` · ${reel.brand}` : '' }}
         </option>
       </select>
-      <NuxtLink to="/tacklebox" class="rod-manage-link">Manage reels</NuxtLink>
+      <button class="text-button" type="button" @click="emit('addReel')">＋ Add a reel</button>
     </div>
   </div>
   <div class="form-field">
@@ -86,3 +76,9 @@ function selectSavedReelById(id: string) {
     <input id="trip-water-depth" v-model="waterDepth" placeholder="e.g. 12 ft or 4 m" maxlength="40">
   </div>
 </template>
+
+<style scoped>
+.rod-picker { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.rod-picker select { flex: 1 1 200px; min-width: 0; }
+.rod-picker .text-button { flex: 0 0 auto; white-space: nowrap; }
+</style>

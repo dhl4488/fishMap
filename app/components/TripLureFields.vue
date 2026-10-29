@@ -141,23 +141,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closePickerOnO
       </div>
     </div>
     <p v-else-if="loading" class="photo-status">Loading your saved lures…</p>
-    <p v-else class="photo-status">
-      No saved or previously used lures yet.
-      <NuxtLink to="/tacklebox">Add a lure to your tacklebox</NuxtLink> or enter one below.
-    </p>
-    <p v-if="quickAddLures.length" class="photo-status">Tap a lure to add it to this trip, or enter another one below.</p>
+    <p v-else-if="!loading" class="photo-status">No saved or previously used lures yet. Add a lure to save its details to your tacklebox and this trip.</p>
+    <p v-if="quickAddLures.length" class="photo-status">Tap a saved lure to add it to this trip, or use Add a lure to create one.</p>
     <div v-for="(lure, index) in lures" :key="lure.id" class="lure-form-row">
-      <input
-        v-model="lure.name"
-        :aria-label="`Lure ${index + 1} name`"
-        placeholder="Lure name, e.g. spinnerbait"
-        maxlength="80"
-        required
-      >
+      <strong class="trip-lure-name">{{ lure.name }}</strong>
       <input
         v-model="lure.notes"
         :aria-label="`Notes for lure ${index + 1}`"
-        placeholder="How did it perform?"
+        placeholder="Trip notes (optional)"
         maxlength="200"
       >
       <button
@@ -192,13 +183,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closePickerOnO
 .saved-lure-added { color: #7a8980; font-size: 12px; }
 .saved-lure-empty { color: #89958e; font-size: 12px; margin: 0; padding: 11px 9px; }
 .lure-form-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(0,1fr) minmax(0,1fr) 30px; margin-top: 8px; }
+.trip-lure-name { color: #425148; font-size: 13px; overflow-wrap: anywhere; }
 .lure-form-row input { min-width: 0; }
 .photo-status { color: #89958e; font-size: 12px; margin: 7px 0 0; }
 .remove-catch-button { align-items: center; background: #f6f7f4; border: 1px solid #e5e9e3; border-radius: 7px; color: #78857d; display: flex; font-size: 17px; height: 40px; justify-content: center; }
 @media (max-width: 500px) {
   .lure-form-row { gap: 6px; grid-template-columns: minmax(0,1fr) 36px; }
   .lure-form-row input { min-height: 44px; }
-  .lure-form-row input:nth-child(2) { grid-column: 1; }
+  .lure-form-row input { grid-column: 1; }
+  .lure-form-row .trip-lure-name { grid-column: 1; }
   .lure-form-row .remove-catch-button { grid-column: 2; grid-row: 1 / span 2; }
   .saved-lure-option { min-height: 44px; }
   .remove-catch-button { height: 44px; }

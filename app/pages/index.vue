@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The trip shape is shared with the data composable and the trip-entry dialog.
 import type { FishingCombo, FishingLure, FishingTrip } from '../composables/useFishingData'
+import { formatTripConditions } from '../utils/tripConditions'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
@@ -168,7 +169,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
               <div class="trip-date-box"><strong>{{ dateParts(trip.date).day }}</strong><span>{{ dateParts(trip.date).month }}</span></div>
               <div class="trip-row-main">
                 <h3>{{ trip.location }}</h3>
-                <p>{{ trip.conditions || 'A day out on the water' }}</p>
+                <p>{{ formatTripConditions(trip) || 'A day out on the water' }}</p>
               </div>
               <span class="catch-count">{{ catchSummary(trip) }}</span>
             </NuxtLink>

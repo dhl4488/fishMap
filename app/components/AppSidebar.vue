@@ -6,7 +6,7 @@ const { signOutUser } = useFirebaseAuth()
 // Signs out the current user and navigates to sign-in; takes no input and returns after navigation completes.
 async function logout() {
   await signOutUser()
-  await navigateTo('/login')
+  await navigateTo('/landing')
 }
 
 const navigation = [

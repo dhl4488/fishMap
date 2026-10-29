@@ -1,8 +1,18 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  // Let visitors reach sign-in; all other app routes require a resolved Firebase session.
-  if (to.path === '/login' || import.meta.server) return
+  if (import.meta.server) return
 
   const { initialize, user } = useFirebaseAuth()
   await initialize()
-  if (!user.value) return navigateTo('/login')
+
+  if (to.path === '/landing') {
+    if (user.value) return navigateTo('/')
+    return
+  }
+
+  if (to.path === '/login') {
+    if (user.value) return navigateTo('/')
+    return
+  }
+
+  if (!user.value) return navigateTo('/landing')
 })

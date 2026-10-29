@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FishingCombo, FishingLure, FishingTrip } from '../composables/useFishingData'
+import { formatTripConditions } from '../utils/tripConditions'
 
 useHead({ title: 'My diary · Tidelog', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
 
@@ -61,7 +62,7 @@ const filteredTrips = computed(() => [...data.value.trips]
     const catchSearchText = trip.catches
       .map(item => `${item.species} ${item.lure ?? ''} ${item.length ?? ''} ${item.weight ?? ''} ${item.released === undefined ? '' : item.released ? 'released' : 'kept'}`)
       .join(' ')
-    const searchText = `${trip.location} ${trip.conditions} ${lureSearchText} ${gearSearchText} ${trip.waterDepth ?? ''} ${trip.notes} ${catchSearchText}`.toLowerCase()
+    const searchText = `${trip.location} ${formatTripConditions(trip)} ${lureSearchText} ${gearSearchText} ${trip.waterDepth ?? ''} ${trip.notes} ${catchSearchText}`.toLowerCase()
     return searchText.includes(query.value.toLowerCase()) && (yearFilter.value === 'all' || trip.date.startsWith(yearFilter.value))
   })
   .sort((a, b) => b.date.localeCompare(a.date)))
@@ -129,6 +130,12 @@ async function exportPdf() {
       addText(`${dateParts(trip.date).full} · ${trip.location}`, { bold: true, size: 12, gapAfter: 3 })
       addText([
         trip.conditions && `Conditions: ${trip.conditions}`,
+        trip.airTemperature && `Air temperature: ${trip.airTemperature} °C`,
+        trip.waterTemperature && `Water temperature: ${trip.waterTemperature} °C`,
+        (trip.windSpeed || trip.windDirection) &&
+          `Wind: ${[trip.windSpeed && `${trip.windSpeed} km/h`, trip.windDirection].filter(Boolean).join(' ')}`,
+        trip.cloudCover && `Cloud cover: ${trip.cloudCover}`,
+        trip.precipitation && `Precipitation: ${trip.precipitation}`,
         trip.rod && `Rod: ${trip.rod}`,
         trip.reel && `Reel: ${trip.reel}`,
         trip.hook && `Hook: ${trip.hook}`,
@@ -224,7 +231,8 @@ async function exportPdf() {
 }
 
 const csvColumns = [
-  'record_type', 'id', 'trip_id', 'date', 'location', 'conditions', 'species', 'quantity', 'length', 'fish_weight',
+  'record_type', 'id', 'trip_id', 'date', 'location', 'conditions', 'air_temperature_c', 'water_temperature_c',
+  'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'species', 'quantity', 'length', 'fish_weight',
   'released', 'catch_photo', 'lure', 'lure_id', 'lure_notes', 'rod', 'hook', 'line', 'trip_weight', 'water_depth',
   'trip_notes', 'trip_photos', 'gear_type', 'name', 'brand', 'type', 'color', 'size', 'power', 'action', 'latitude',
   'longitude', 'water', 'kind', 'notes', 'combo_lures', 'hidden_lure_key'
@@ -240,6 +248,12 @@ function exportCsv() {
       date: trip.date,
       location: trip.location,
       conditions: trip.conditions,
+      air_temperature_c: trip.airTemperature,
+      water_temperature_c: trip.waterTemperature,
+      wind_speed_kmh: trip.windSpeed,
+      wind_direction: trip.windDirection,
+      cloud_cover: trip.cloudCover,
+      precipitation: trip.precipitation,
       rod: trip.rod,
       reel: trip.reel,
       hook: trip.hook,
@@ -497,7 +511,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         <div class="entry-header">
           <div class="entry-heading">
             <div class="trip-date-box"><strong>{{ dateParts(trip.date).day }}</strong><span>{{ dateParts(trip.date).month }}</span></div>
-            <div><h2>{{ trip.location }}</h2><p>{{ dateParts(trip.date).full }} <span v-if="trip.conditions"> · {{ trip.conditions }}</span></p></div>
+            <div><h2>{{ trip.location }}</h2><p>{{ dateParts(trip.date).full }} <span v-if="formatTripConditions(trip)"> · {{ formatTripConditions(trip) }}</span></p></div>
           </div>
           <div class="entry-actions">
             <span class="entry-weather">{{ catchSummary(trip) }}</span>

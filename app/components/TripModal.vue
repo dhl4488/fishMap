@@ -2,6 +2,7 @@
 import type { FishingCombo, FishingLure, FishingSpot, FishingTrip, TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
 import type { CatchDraft } from '../types/tripCatchDraft'
 import type { TripLureDraft } from '../types/tripLureDraft'
+import { fetchTripWeather } from '../utils/openMeteo'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 
 const props = defineProps<{
@@ -22,6 +23,11 @@ const props = defineProps<{
   comboSaveError?: string | null
   comboSaveSuccess?: string | null
 }>()
+const {
+  addTackleboxLure,
+  addTackleboxRod,
+  addTackleboxReel
+} = useFishingData()
 const { isNative } = useNativeFeatures()
 const emit = defineEmits<{
   close: []
@@ -44,6 +50,15 @@ const nextCatchId = ref(0)
 const lures = ref<TripLureDraft[]>([])
 const nextLureId = ref(0)
 const conditions = ref('')
+const airTemperature = ref('')
+const waterTemperature = ref('')
+const windSpeed = ref('')
+const windDirection = ref('')
+const cloudCover = ref('')
+const precipitation = ref('')
+const weatherLoading = ref(false)
+const weatherError = ref('')
+const weatherStatus = ref('')
 const hook = ref('')
 const line = ref('')
 const weight = ref('')
@@ -56,6 +71,9 @@ const reelId = ref('')
 const selectedComboId = ref('')
 const comboName = ref('')
 const comboActionError = ref('')
+const gearModalKind = ref<'lure' | 'rod' | 'reel' | null>(null)
+const gearModalSaving = ref(false)
+const gearModalError = ref('')
 
 // Creates a blank catch draft; takes no input and returns a draft with a unique local ID.
 function newCatch(): CatchDraft {
@@ -107,6 +125,14 @@ function resetDraft(trip: FishingTrip | null = null) {
     : [newCatch()]
   date.value = trip?.date ?? today
   conditions.value = trip?.conditions ?? ''
+  airTemperature.value = trip?.airTemperature ?? ''
+  waterTemperature.value = trip?.waterTemperature ?? ''
+  windSpeed.value = trip?.windSpeed ?? ''
+  windDirection.value = trip?.windDirection ?? ''
+  cloudCover.value = trip?.cloudCover ?? ''
+  precipitation.value = trip?.precipitation ?? ''
+  weatherError.value = ''
+  weatherStatus.value = ''
   hook.value = trip?.hook ?? ''
   line.value = trip?.line ?? ''
   weight.value = trip?.weight ?? ''
@@ -134,6 +160,36 @@ function addCatch() {
 function toggleCatchDetails(catchItem: CatchDraft) {
   catchItem.individualDetails = !catchItem.individualDetails
   if (catchItem.individualDetails) catchItem.quantity = 1
+}
+
+async function fillWeatherFromLocation() {
+  const requestedDate = date.value
+  const requestedLocation = location.value.trim()
+  weatherError.value = ''
+  weatherStatus.value = ''
+  if (!requestedLocation) {
+    weatherError.value = 'Enter a trip location before looking up weather.'
+    return
+  }
+
+  weatherLoading.value = true
+  try {
+    const weather = await fetchTripWeather(requestedDate, requestedLocation, props.spots)
+    if (date.value !== requestedDate || location.value.trim() !== requestedLocation) {
+      throw new Error('Trip date or location changed during the lookup. Try again to get matching weather.')
+    }
+
+    if (weather.airTemperature !== undefined) airTemperature.value = weather.airTemperature
+    if (weather.windSpeed !== undefined) windSpeed.value = weather.windSpeed
+    if (weather.windDirection !== undefined) windDirection.value = weather.windDirection
+    if (weather.cloudCover !== undefined) cloudCover.value = weather.cloudCover
+    if (weather.precipitation !== undefined) precipitation.value = weather.precipitation
+    weatherStatus.value = `Daily estimate for ${weather.resolvedLocation} applied. Review the values before saving. Water temperature is unchanged.`
+  } catch (error) {
+    weatherError.value = error instanceof Error ? error.message : 'Could not retrieve weather for this trip.'
+  } finally {
+    weatherLoading.value = false
+  }
 }
 
 // Opens the device photo picker for a catch; accepts the draft and stores its selected image or error.
@@ -179,9 +235,65 @@ function removeCatch(id: number) {
   catches.value = catches.value.filter(item => item.id !== id)
 }
 
-// Appends a blank lure draft; takes no input and updates the lure draft list.
+// Opens the shared tacklebox form for a new lure.
 function addLure() {
-  lures.value.push(newLure())
+  openGearModal('lure')
+}
+
+// Opens the shared tacklebox form for the selected type of gear.
+function openGearModal(kind: 'lure' | 'rod' | 'reel') {
+  gearModalKind.value = kind
+  gearModalError.value = ''
+}
+
+function closeGearModal() {
+  if (gearModalSaving.value) return
+  gearModalKind.value = null
+  gearModalError.value = ''
+}
+
+async function saveTripLure(lure: Omit<TackleboxLure, 'id'>) {
+  gearModalSaving.value = true
+  gearModalError.value = ''
+  try {
+    const savedLure = await addTackleboxLure(lure)
+    addPreviousLure({ name: savedLure.name, notes: '', inventoryLureId: savedLure.id })
+    gearModalKind.value = null
+  } catch (error) {
+    gearModalError.value = error instanceof Error ? error.message : 'Could not save this lure.'
+  } finally {
+    gearModalSaving.value = false
+  }
+}
+
+async function saveTripRod(rod: Omit<TackleboxRod, 'id'>) {
+  gearModalSaving.value = true
+  gearModalError.value = ''
+  try {
+    const savedRod = await addTackleboxRod(rod)
+    rodName.value = savedRod.name
+    rodId.value = savedRod.id
+    gearModalKind.value = null
+  } catch (error) {
+    gearModalError.value = error instanceof Error ? error.message : 'Could not save this rod.'
+  } finally {
+    gearModalSaving.value = false
+  }
+}
+
+async function saveTripReel(reel: Omit<TackleboxReel, 'id'>) {
+  gearModalSaving.value = true
+  gearModalError.value = ''
+  try {
+    const savedReel = await addTackleboxReel(reel)
+    reelName.value = savedReel.name
+    reelId.value = savedReel.id
+    gearModalKind.value = null
+  } catch (error) {
+    gearModalError.value = error instanceof Error ? error.message : 'Could not save this reel.'
+  } finally {
+    gearModalSaving.value = false
+  }
 }
 
 // Checks whether a lure is already in the trip draft; accepts its name/ID and returns a duplicate-match boolean.
@@ -226,7 +338,12 @@ function applySelectedCombo(id: string) {
 watch(() => [props.modelValue, props.trip] as const, ([isOpen, trip]) => {
   if (isOpen) {
     resetDraft(trip ?? null)
+    gearModalKind.value = null
   }
+})
+
+watch(() => props.modelValue, isOpen => {
+  if (!isOpen && !gearModalSaving.value) closeGearModal()
 })
 
 // Converts draft values into a trip payload and emits it with catch photo files; takes no input and returns nothing.
@@ -260,6 +377,12 @@ function submitTrip() {
     location: location.value.trim(),
     catches: tripCatches,
     conditions: conditions.value.trim(),
+    ...(airTemperature.value.trim() ? { airTemperature: airTemperature.value.trim() } : {}),
+    ...(waterTemperature.value.trim() ? { waterTemperature: waterTemperature.value.trim() } : {}),
+    ...(windSpeed.value.trim() ? { windSpeed: windSpeed.value.trim() } : {}),
+    ...(windDirection.value ? { windDirection: windDirection.value } : {}),
+    ...(cloudCover.value ? { cloudCover: cloudCover.value } : {}),
+    ...(precipitation.value ? { precipitation: precipitation.value } : {}),
     lures: lures.value
       .map(({ name, notes, inventoryLureId }) => ({
         name: name.trim(),
@@ -285,7 +408,7 @@ function submitTrip() {
   <!-- Teleport keeps the modal above app layout stacking contexts. -->
   <Teleport to="body">
     <div v-if="modelValue" class="modal-backdrop" @click.self="!saving && emit('close')" @keydown.esc="!saving && emit('close')">
-      <form class="modal" @submit.prevent="submitTrip">
+      <form class="modal trip-modal" @submit.prevent="submitTrip">
         <div class="modal-header">
           <div>
             <p class="eyebrow">{{ trip ? 'EDIT YOUR ENTRY' : 'A NEW ENTRY' }}</p>
@@ -299,76 +422,151 @@ function submitTrip() {
           <template v-if="trip">Existing trips can't be edited offline. Cancel and log a new trip to save it on this device for syncing later.</template>
           <template v-else>You're offline. This trip and its catch photos will be saved on this device and uploaded when you're connected again.</template>
         </p>
-        <div class="form-grid">
-          <div class="form-field">
-            <label for="trip-date">Date</label>
-            <input id="trip-date" v-model="date" type="date" required>
-          </div>
-          <TripSpotField v-model="location" :spots="spots" :loading="spotsLoading" />
+        <div class="form-grid trip-sections">
+          <section class="trip-section">
+            <h3>Trip details</h3>
+            <div class="trip-section-grid">
+              <div class="form-field">
+                <label for="trip-date">Date</label>
+                <input id="trip-date" v-model="date" type="date" required>
+              </div>
+              <TripSpotField v-model="location" :spots="spots" :loading="spotsLoading" />
+              <div class="trip-environmental-fields form-field-full">
+                <div class="trip-environmental-heading">
+                  <h4>Environmental conditions</h4>
+                  <button class="secondary-button" type="button" :disabled="weatherLoading || !location.trim()" @click="fillWeatherFromLocation">
+                    {{ weatherLoading ? 'Looking up weather…' : 'Fill from weather' }}
+                  </button>
+                </div>
+                <p class="trip-weather-attribution">
+                  Daily estimates from <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> use the trip date and location. Review before saving.
+                </p>
+                <p v-if="weatherError" class="trip-weather-error" role="alert">{{ weatherError }}</p>
+                <p v-if="weatherStatus" class="trip-weather-status" role="status">{{ weatherStatus }}</p>
+                <div class="trip-environmental-grid">
+                  <div class="form-field">
+                    <label for="trip-air-temperature">Air temperature (°C)</label>
+                    <input id="trip-air-temperature" v-model="airTemperature" type="text" inputmode="decimal" placeholder="e.g. 18" maxlength="8">
+                  </div>
+                  <div class="form-field">
+                    <label for="trip-water-temperature">Water temperature (°C)</label>
+                    <input id="trip-water-temperature" v-model="waterTemperature" type="text" inputmode="decimal" placeholder="e.g. 14" maxlength="8">
+                  </div>
+                  <div class="form-field">
+                    <label for="trip-wind-speed">Wind speed (km/h)</label>
+                    <input id="trip-wind-speed" v-model="windSpeed" type="text" inputmode="decimal" placeholder="e.g. 12" maxlength="8">
+                  </div>
+                  <div class="form-field">
+                    <label for="trip-wind-direction">Wind direction</label>
+                    <select id="trip-wind-direction" v-model="windDirection">
+                      <option value="">Not recorded</option>
+                      <option v-for="direction in ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']" :key="direction" :value="direction">{{ direction }}</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="trip-cloud-cover">Cloud cover</label>
+                    <select id="trip-cloud-cover" v-model="cloudCover">
+                      <option value="">Not recorded</option>
+                      <option>Clear</option>
+                      <option>Partly cloudy</option>
+                      <option>Mostly cloudy</option>
+                      <option>Overcast</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="trip-precipitation">Precipitation</label>
+                    <select id="trip-precipitation" v-model="precipitation">
+                      <option value="">Not recorded</option>
+                      <option>None</option>
+                      <option>Rain</option>
+                      <option>Snow</option>
+                      <option>Drizzle</option>
+                      <option>Mixed</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="form-field form-field-full">
+                <label for="trip-conditions">Other conditions <span>(optional)</span></label>
+                <input id="trip-conditions" v-model="conditions" placeholder="e.g. water clarity, tide, current" maxlength="100">
+              </div>
+            </div>
+          </section>
 
-          <TripCatchFields
-            :catches="catches"
-            :lures="lures"
-            :is-native="isNative"
-            :capture-photo="captureCatchPhoto"
-            :remove-photo="removeCatchPhoto"
-            @add="addCatch"
-            @remove="removeCatch"
-            @toggle-details="toggleCatchDetails"
-          />
+          <section class="trip-section">
+            <h3>Catch Log</h3>
+            <TripCatchFields
+              :catches="catches"
+              :lures="lures"
+              :is-native="isNative"
+              :capture-photo="captureCatchPhoto"
+              :remove-photo="removeCatchPhoto"
+              @add="addCatch"
+              @remove="removeCatch"
+              @toggle-details="toggleCatchDetails"
+            />
+          </section>
 
-          <div class="form-field form-field-full">
-            <label for="trip-conditions">Conditions</label>
-            <input id="trip-conditions" v-model="conditions" placeholder="Weather, temperature, water conditions…" maxlength="100">
-          </div>
-          <TripComboPicker
-            v-model="selectedComboId"
-            :combos="combos"
-            @apply="applySelectedCombo"
-          />
-          <TripLureFields
-            :lures="lures"
-            :previous-lures="previousLures"
-            :tacklebox-lures="tackleboxLures"
-            :loading="luresLoading"
-            @add="addLure"
-            @remove="removeLure"
-            @add-saved="addPreviousLure"
-          />
-          <TripGearFields
-            v-model:rod-name="rodName"
-            v-model:rod-id="rodId"
-            v-model:reel-name="reelName"
-            v-model:reel-id="reelId"
-            v-model:hook="hook"
-            v-model:line="line"
-            v-model:weight="weight"
-            v-model:water-depth="waterDepth"
-            :rods="tackleboxRods"
-            :reels="tackleboxReels"
-          />
-          <div class="form-field form-field-full">
-            <label for="trip-notes">Trip notes</label>
-            <textarea id="trip-notes" v-model="notes" placeholder="The good bits, what worked, what you might try next time…" maxlength="1000" />
-          </div>
+          <section class="trip-section">
+            <h3>Lures and gear</h3>
+            <div class="trip-section-grid">
+              <TripComboPicker
+                v-model="selectedComboId"
+                :combos="combos"
+                @apply="applySelectedCombo"
+              />
+              <TripLureFields
+                :lures="lures"
+                :previous-lures="previousLures"
+                :tacklebox-lures="tackleboxLures"
+                :loading="luresLoading"
+                @add="addLure"
+                @remove="removeLure"
+                @add-saved="addPreviousLure"
+              />
+              <TripGearFields
+                v-model:rod-name="rodName"
+                v-model:rod-id="rodId"
+                v-model:reel-name="reelName"
+                v-model:reel-id="reelId"
+                v-model:hook="hook"
+                v-model:line="line"
+                v-model:weight="weight"
+                v-model:water-depth="waterDepth"
+                :rods="tackleboxRods"
+                :reels="tackleboxReels"
+                @add-rod="openGearModal('rod')"
+                @add-reel="openGearModal('reel')"
+              />
+              <TripComboSave
+                v-model:combo-name="comboName"
+                v-model:action-error="comboActionError"
+                :lures="lures"
+                :hook="hook"
+                :line="line"
+                :weight="weight"
+                :saving="savingCombo"
+                :save-error="comboSaveError"
+                :save-success="comboSaveSuccess"
+                @save="emit('saveCombo', $event)"
+              />
+            </div>
+          </section>
 
-          <div class="form-field form-field-full">
-            <label for="trip-photos">Trip photos</label>
-            <input id="trip-photos" type="file" accept="image/*" disabled aria-describedby="trip-photos-status">
-            <p id="trip-photos-status" class="photo-status">Photo uploads are temporarily unavailable.</p>
-          </div>
-          <TripComboSave
-            v-model:combo-name="comboName"
-            v-model:action-error="comboActionError"
-            :lures="lures"
-            :hook="hook"
-            :line="line"
-            :weight="weight"
-            :saving="savingCombo"
-            :save-error="comboSaveError"
-            :save-success="comboSaveSuccess"
-            @save="emit('saveCombo', $event)"
-          />
+          <section class="trip-section">
+            <h3>Trip notes and photos</h3>
+            <div class="trip-section-grid">
+              <div class="form-field form-field-full">
+                <label for="trip-notes">Trip notes</label>
+                <textarea id="trip-notes" v-model="notes" placeholder="The good bits, what worked, what you might try next time…" maxlength="1000" />
+              </div>
+              <div class="form-field form-field-full">
+                <label for="trip-photos">Trip photos</label>
+                <input id="trip-photos" type="file" accept="image/*" disabled aria-describedby="trip-photos-status">
+                <p id="trip-photos-status" class="photo-status">Photo uploads are temporarily unavailable.</p>
+              </div>
+            </div>
+          </section>
         </div>
         <div class="form-actions">
           <button class="cancel-button" type="button" :disabled="saving" @click="emit('close')">Cancel</button>
@@ -377,6 +575,30 @@ function submitTrip() {
       </form>
     </div>
   </Teleport>
+  <TackleboxGearModal
+    v-if="gearModalKind === 'lure'"
+    kind="lure"
+    :saving="gearModalSaving"
+    :error="gearModalError"
+    @close="closeGearModal"
+    @save-lure="saveTripLure"
+  />
+  <TackleboxGearModal
+    v-if="gearModalKind === 'rod'"
+    kind="rod"
+    :saving="gearModalSaving"
+    :error="gearModalError"
+    @close="closeGearModal"
+    @save-rod="saveTripRod"
+  />
+  <TackleboxGearModal
+    v-if="gearModalKind === 'reel'"
+    kind="reel"
+    :saving="gearModalSaving"
+    :error="gearModalError"
+    @close="closeGearModal"
+    @save-reel="saveTripReel"
+  />
 </template>
 
 <style scoped>
@@ -384,9 +606,61 @@ function submitTrip() {
 .photo-status { color: #89958e; font-size: 12px; margin: 7px 0 0; }
 .offline-save-note { background: #edf5ed; border-radius: 7px; color: #46694c; font-size: 12px; line-height: 1.5; margin: 0 0 14px; padding: 9px 11px; }
 .trip-save-error { background: #fbf0ec; border-radius: 7px; color: #985b45; font-size: 12px; line-height: 1.5; margin: 0 0 14px; padding: 10px 12px; }
+.trip-modal { max-width: 640px; padding: 30px; }
+.trip-modal .modal-header { margin-bottom: 26px; }
+.trip-modal .modal-header h2 { font-size: 23px; }
+.trip-modal .modal-header p { font-size: 14px; line-height: 1.5; }
+.trip-modal .trip-sections { gap: 16px; }
+.trip-modal .trip-section { background: #f8faf7; border: 1px solid #e4eae3; border-radius: 11px; display: grid; gap: 14px; grid-column: 1 / -1; padding: 17px; }
+.trip-modal .trip-section h3 { color: #34483c; font: 700 16px/1.3 Manrope, sans-serif; margin: 0; }
+.trip-modal .trip-section-grid { display: grid; gap: 16px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.trip-modal .trip-environmental-fields { border-top: 1px solid #e4eae3; display: grid; gap: 12px; padding-top: 14px; }
+.trip-modal .trip-environmental-heading { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: space-between; }
+.trip-modal .trip-environmental-fields h4 { color: #536158; font-size: 14px; margin: 0; }
+.trip-modal .trip-weather-attribution,
+.trip-modal .trip-weather-status,
+.trip-modal .trip-weather-error { font-size: 13px; line-height: 1.5; margin: 0; }
+.trip-modal .trip-weather-attribution,
+.trip-modal .trip-weather-status { color: #718078; }
+.trip-modal .trip-weather-attribution a { color: #477353; text-decoration: underline; text-underline-offset: 2px; }
+.trip-modal .trip-weather-error { color: #985b45; }
+.trip-modal .trip-environmental-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.trip-modal :deep(.trip-section-grid > .form-field-full) { grid-column: 1 / -1; }
+.trip-modal :deep(.form-field) { gap: 8px; }
+.trip-modal :deep(.form-field label) { font-size: 14px; }
+.trip-modal :deep(.form-field input),
+.trip-modal :deep(.form-field select),
+.trip-modal :deep(.form-field textarea) { font-size: 15px; min-height: 46px; padding: 11px 12px; }
+.trip-modal :deep(.form-field textarea) { min-height: 96px; }
+.trip-modal :deep(.text-button),
+.trip-modal :deep(.primary-button),
+.trip-modal :deep(.secondary-button) { font-size: 14px; }
+.trip-modal :deep(.photo-status),
+.trip-modal :deep(.offline-save-note),
+.trip-modal :deep(.trip-save-error),
+.trip-modal :deep(.saved-lure-label),
+.trip-modal :deep(.saved-lure-option-copy strong),
+.trip-modal :deep(.saved-lure-option-copy span),
+.trip-modal :deep(.saved-lure-empty),
+.trip-modal :deep(.trip-lure-name),
+.trip-modal :deep(.catch-photo-status-text),
+.trip-modal :deep(.catch-photo-error),
+.trip-modal :deep(.catch-photo-status),
+.trip-modal :deep(.combo-picker label),
+.trip-modal :deep(.combo-save > label) { font-size: 14px; }
+.trip-modal :deep(.catch-form-heading) { margin-bottom: 4px; }
+.trip-modal :deep(.saved-lure-picker) { gap: 9px; margin-top: 14px; }
+.trip-modal :deep(.lure-form-row) { gap: 12px; margin-top: 12px; }
+.trip-modal :deep(.rod-field) { margin-top: 4px; }
+.trip-modal .form-actions { margin-top: 26px; }
+.trip-modal .form-actions button { font-size: 14px; min-height: 46px; padding: 11px 16px; }
 @media (max-width: 500px) {
   .modal-backdrop { align-items: flex-start; overflow-y: auto; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
   .modal { border-radius: 12px; max-height: calc(100dvh - 24px); padding: 18px; }
+  .trip-modal .trip-section { gap: 12px; padding: 14px; }
+  .trip-modal .trip-section-grid { gap: 14px 10px; grid-template-columns: minmax(0, 1fr); }
+  .trip-modal .trip-environmental-grid { grid-template-columns: minmax(0, 1fr); }
+  .trip-modal :deep(.trip-section-grid > .form-field) { grid-column: 1 / -1; }
   .modal-close { flex: 0 0 40px; height: 40px; width: 40px; }
   .form-actions > button { flex: 1; min-height: 44px; }
 }
