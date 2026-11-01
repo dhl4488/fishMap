@@ -744,7 +744,8 @@ function submitTrip() {
 .photo-status { color: #89958e; font-size: 12px; margin: 7px 0 0; }
 .offline-save-note { background: #edf5ed; border-radius: 7px; color: #46694c; font-size: 12px; line-height: 1.5; margin: 0 0 14px; padding: 9px 11px; }
 .trip-save-error { background: #fbf0ec; border-radius: 7px; color: #985b45; font-size: 12px; line-height: 1.5; margin: 0 0 14px; padding: 10px 12px; }
-.trip-modal { max-height: calc(100dvh - 36px); max-width: 900px; overflow-y: auto; padding: 30px; }
+.modal-backdrop { align-items: flex-start; overflow-y: auto; }
+.trip-modal { box-sizing: border-box; margin-block: auto; max-height: calc(100vh - 36px); max-height: calc(100dvh - 36px); max-width: 900px; overflow-y: auto; padding: 30px; }
 .trip-location-step,.trip-details-step { display: grid; gap: 16px; min-width: 0; }
 .trip-location-step :deep(.pick-spot-card) { gap: 14px; padding: 16px; }
 .trip-step-indicator { align-items: center; color: #89958e; display: flex; font-size: 12px; gap: 9px; }
@@ -813,7 +814,7 @@ function submitTrip() {
 @media (max-width: 500px) {
   .modal-backdrop { align-items: flex-start; overflow-y: auto; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
   .modal { border-radius: 12px; max-height: calc(100dvh - 24px); padding: 18px; }
-  .trip-modal { max-height: calc(100dvh - 24px); }
+  .trip-modal { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
   .trip-modal .modal-header { margin-bottom: 18px; }
   .trip-location-step :deep(.pick-spot-card) { padding: 10px; }
   .trip-location-summary { align-items: flex-start; flex-wrap: wrap; }
