@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
 import { lureTypes, reelTypes, rodTypes } from '../utils/tackleboxGear'
+import { isWithinMeasurementRange, normalizeMeasurementToMetric } from '../utils/tripInputValidation'
 
 type GearKind = 'lure' | 'rod' | 'reel'
 type GearItem = TackleboxLure | TackleboxRod | TackleboxReel
@@ -42,7 +43,9 @@ watch(() => [props.kind, props.initial, props.initialName] as const, () => {
   color.value = 'color' in (initial ?? {}) ? initial?.color ?? '' : ''
   size.value = 'size' in (initial ?? {}) ? initial?.size ?? '' : ''
   notes.value = initial?.notes ?? ''
-  length.value = 'length' in (initial ?? {}) ? initial?.length ?? '' : ''
+  length.value = 'length' in (initial ?? {}) && initial?.length
+    ? normalizeMeasurementToMetric(initial.length, 'rodLength')
+    : ''
   power.value = 'power' in (initial ?? {}) ? initial?.power ?? '' : ''
   action.value = 'action' in (initial ?? {}) ? initial?.action ?? '' : ''
   gearRatio.value = 'gearRatio' in (initial ?? {}) ? initial?.gearRatio ?? '' : ''
@@ -68,11 +71,15 @@ function submit() {
       notes: notes.value.trim()
     })
   } else if (props.kind === 'rod') {
+    if (!isWithinMeasurementRange(length.value, 'rodLength')) {
+      validationError.value = 'Rod length must be a positive measurement no longer than 915 cm.'
+      return
+    }
     emit('save-rod', {
       name: trimmedName,
       brand: brand.value.trim(),
       type: type.value.trim(),
-      length: length.value.trim(),
+      length: normalizeMeasurementToMetric(length.value, 'rodLength'),
       power: power.value.trim(),
       action: action.value.trim(),
       notes: notes.value.trim()
@@ -142,8 +149,8 @@ function submit() {
           </template>
           <template v-else-if="kind === 'rod'">
             <div class="form-field">
-              <label for="tackle-rod-length">Length</label>
-              <input id="tackle-rod-length" v-model="length" placeholder="e.g. 6 ft 8 in" maxlength="30">
+              <label for="tackle-rod-length">Length (cm)</label>
+              <input id="tackle-rod-length" v-model="length" placeholder="e.g. 203 cm" maxlength="30">
             </div>
             <div class="form-field">
               <label for="tackle-rod-power">Power</label>
@@ -165,7 +172,7 @@ function submit() {
             </div>
             <div class="form-field form-field-full">
               <label for="tackle-reel-retrieve">Retrieve</label>
-              <input id="tackle-reel-retrieve" v-model="retrieve" placeholder="e.g. Left-hand, 35 in per turn" maxlength="50">
+              <input id="tackle-reel-retrieve" v-model="retrieve" placeholder="e.g. Left-hand, 89 cm per turn" maxlength="50">
             </div>
           </template>
           <div class="form-field form-field-full">

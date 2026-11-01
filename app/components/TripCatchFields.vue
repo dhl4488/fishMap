@@ -80,11 +80,11 @@ const emit = defineEmits<{
         <div class="individual-catch-fields">
           <label>
             <span>Length</span>
-            <input v-model="catchItem.length" :aria-label="`Length of catch ${index + 1}`" placeholder="e.g. 18 in" maxlength="30">
+            <input v-model="catchItem.length" :aria-label="`Length of catch ${index + 1}`" placeholder="e.g. 45 cm" maxlength="30">
           </label>
           <label>
             <span>Weight</span>
-            <input v-model="catchItem.weight" :aria-label="`Weight of catch ${index + 1}`" placeholder="e.g. 2 lb 4 oz" maxlength="30">
+            <input v-model="catchItem.weight" :aria-label="`Weight of catch ${index + 1}`" placeholder="e.g. 1.2 kg" maxlength="30">
           </label>
           <label>
             <span>Fish status</span>

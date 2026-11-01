@@ -216,3 +216,19 @@ h1,h2,h3,p { margin-top: 0; }
   .form-grid { grid-template-columns: 1fr; }
   .form-field-full { grid-column: auto; }
 }
+
+@media (min-width: 1440px) {
+  body { zoom: 1.05; }
+}
+@media (min-width: 1680px) {
+  body { zoom: 1.08; }
+}
+@media (min-width: 1920px) {
+  body { zoom: 1.12; }
+}
+@media (min-width: 2240px) {
+  body { zoom: 1.16; }
+}
+@media (min-width: 2560px) {
+  body { zoom: 1.2; }
+}

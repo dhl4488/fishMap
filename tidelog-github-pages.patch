@@ -1,0 +1,260 @@
+diff --git a/.github/workflows/deploy-pages.yml b/.github/workflows/deploy-pages.yml
+new file mode 100644
+index 0000000..27e4f32
+--- /dev/null
++++ b/.github/workflows/deploy-pages.yml
+@@ -0,0 +1,71 @@
++# Builds Tidelog as a static site and publishes it to GitHub Pages on every push to main.
++# Site URL: https://<your-username>.github.io/<repo-name>/ (or your custom domain, if one is set in Settings > Pages)
++#
++# One-time setup (see README "Hosting on GitHub Pages"):
++#   1. Settings > Pages > Build and deployment > Source: "GitHub Actions"
++#   2. Settings > Secrets and variables > Actions > Variables: add the NUXT_PUBLIC_FIREBASE_* values below
++#   3. Firebase console > Authentication > Settings > Authorized domains: add <your-username>.github.io
++name: Deploy to GitHub Pages
++
++on:
++  push:
++    branches: [main]
++  workflow_dispatch:
++
++permissions:
++  contents: read
++  pages: write
++  id-token: write
++
++concurrency:
++  group: pages
++  cancel-in-progress: true
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++
++      - uses: actions/setup-node@v4
++        with:
++          node-version: 22
++          cache: npm
++
++      - run: npm ci
++
++      # Tells us whether the site is served at a sub-path (https://<user>.github.io/<repo>/) or a custom domain (/).
++      - id: pages
++        uses: actions/configure-pages@v5
++
++      - name: Build static site
++        run: npm run generate
++        env:
++          PAGES_BUILD: 'true'
++          NUXT_APP_BASE_URL: ${{ steps.pages.outputs.base_path }}/
++          # Firebase web config is public by design (security comes from firestore.rules / storage.rules),
++          # so these live in repository Variables rather than Secrets.
++          NUXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NUXT_PUBLIC_FIREBASE_API_KEY }}
++          NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
++          NUXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NUXT_PUBLIC_FIREBASE_PROJECT_ID }}
++          NUXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NUXT_PUBLIC_FIREBASE_APP_ID }}
++          NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
++          NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
++          NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
++
++      # GitHub Pages runs Jekyll by default, which drops folders starting with "_" (Nuxt's /_nuxt/ bundle).
++      - run: touch .output/public/.nojekyll
++
++      - uses: actions/upload-pages-artifact@v3
++        with:
++          path: .output/public
++
++  deploy:
++    needs: build
++    runs-on: ubuntu-latest
++    environment:
++      name: github-pages
++      url: ${{ steps.deployment.outputs.page_url }}
++    steps:
++      - id: deployment
++        uses: actions/deploy-pages@v4
+diff --git a/README.md b/README.md
+index a568286..93e3c44 100644
+--- a/README.md
++++ b/README.md
+@@ -6,4 +6,14 @@ Trip entries include a picker of 30 commonly caught Ontario fish, with an "Other
+ The **Tacklebox** page stores a personal lure inventory with name, brand, type, color/pattern, size/weight, and notes, as well as an optional rod inventory with brand, type, length, power, action, and notes. Select saved gear while logging a trip; trip logs keep a readable gear-name snapshot if an inventory item is later removed. Lure entries can be removed from the tacklebox without deleting their trip logs or catch history. The tacklebox summarizes lure catch totals by species.
+ On the fishing spots page, choose **Pick a spot on map** and click the map to set a pin; no coordinate entry is needed.
+ 
+-DISCLAIMER: This project does use AI tools to help with backend development. I do not take credit for code related to connecting local data to the cloud firebase (I.E. useFirebaseAuth.ts). 
+\ No newline at end of file
++DISCLAIMER: This project does use AI tools to help with backend development. I do not take credit for code related to connecting local data to the cloud firebase (I.E. useFirebaseAuth.ts). 
++## Hosting on GitHub Pages
++
++The site is built and published by `.github/workflows/deploy-pages.yml` on every push to `main`. One-time setup:
++
++1. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions** (not "Deploy from a branch", which only shows this README).
++2. **Settings → Secrets and variables → Actions → Variables:** add the same Firebase values as your local `.env`:
++   `NUXT_PUBLIC_FIREBASE_API_KEY`, `NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NUXT_PUBLIC_FIREBASE_PROJECT_ID`, `NUXT_PUBLIC_FIREBASE_APP_ID`, `NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID`.
++3. **Firebase console → Authentication → Settings → Authorized domains:** add `<your-username>.github.io` (or your custom domain).
++
++Files in `public/` should be referenced with `asset('/assets/...')` so they still load when the site is served from `/<repo>/`.
+diff --git a/app/app.vue b/app/app.vue
+index eccf76e..7c7527e 100644
+--- a/app/app.vue
++++ b/app/app.vue
+@@ -1,7 +1,7 @@
+ <script setup lang="ts">
+ const route = useRoute()
+ 
+-useHead({ link: [{ rel: 'manifest', href: '/manifest.webmanifest' }] })
++useHead({ link: [{ rel: 'manifest', href: asset('/manifest.webmanifest') }] })
+ </script>
+ 
+ <template>
+diff --git a/app/components/AppSidebar.vue b/app/components/AppSidebar.vue
+index 3597d9a..31f245c 100644
+--- a/app/components/AppSidebar.vue
++++ b/app/components/AppSidebar.vue
+@@ -21,7 +21,7 @@ const navigation = [
+ <template>
+   <aside class="sidebar">
+     <NuxtLink to="/" class="brand" aria-label="Tidelog home">
+-      <img class="brand-mark" src="/assets/tide-log-icon.png" alt="">
++      <img class="brand-mark" :src="asset('/assets/tide-log-icon.png')" alt="">
+       <span class="brand-name">tidelog<span class="brand-period">.</span></span>
+     </NuxtLink>
+ 
+diff --git a/app/components/FishModel.vue b/app/components/FishModel.vue
+index d5f2d47..94b8848 100644
+--- a/app/components/FishModel.vue
++++ b/app/components/FishModel.vue
+@@ -20,7 +20,7 @@ async function loadModel() {
+     // Register the Web Component only in the browser; GLB rendering depends on WebGL.
+     await import('@google/model-viewer')
+     const viewer = document.createElement('model-viewer')
+-    viewer.setAttribute('src', `/assets/models/${filename}`)
++    viewer.setAttribute('src', asset(`/assets/models/${filename}`))
+     viewer.setAttribute('alt', `3D model of ${props.species}`)
+     viewer.setAttribute('camera-controls', '')
+     viewer.setAttribute('auto-rotate', '')
+diff --git a/app/pages/about.vue b/app/pages/about.vue
+index 2576811..d82fb42 100644
+--- a/app/pages/about.vue
++++ b/app/pages/about.vue
+@@ -2,7 +2,7 @@
+   // Set browser metadata for the about page.
+   useHead({ title: 'About Tidelog', meta: [{ name: 'description', content: 'Learn more about Tidelog, the fishing logbook app for anglers.' }] })
+ 
+-  const creatorPhoto = '/assets/creator_photo.jpg'
++  const creatorPhoto = asset('/assets/creator_photo.jpg')
+ </script>
+ 
+ <template>
+diff --git a/app/pages/landing.vue b/app/pages/landing.vue
+index b24e818..bf5b19c 100644
+--- a/app/pages/landing.vue
++++ b/app/pages/landing.vue
+@@ -9,7 +9,7 @@ useHead({
+   <main class="landing-page">
+     <header class="landing-header">
+       <NuxtLink to="/landing" class="landing-brand" aria-label="Tidelog home">
+-        <img src="/assets/tide-log-icon.png" alt="">
++        <img :src="asset('/assets/tide-log-icon.png')" alt="">
+         <span>tidelog<span class="brand-period">.</span></span>
+       </NuxtLink>
+       <nav aria-label="Account">
+diff --git a/app/pages/login.vue b/app/pages/login.vue
+index 02086c4..50bbad3 100644
+--- a/app/pages/login.vue
++++ b/app/pages/login.vue
+@@ -41,7 +41,7 @@ async function submit() {
+   <main class="auth-page">
+     <section class="auth-card">
+       <NuxtLink to="/landing" class="brand auth-brand">
+-        <img class="brand-mark" src="/assets/tide-log-icon.png" alt="">
++        <img class="brand-mark" :src="asset('/assets/tide-log-icon.png')" alt="">
+         <span class="brand-name">tidelog<span class="brand-period">.</span></span>
+       </NuxtLink>
+       <p class="eyebrow">YOUR DAYS ON THE WATER</p>
+diff --git a/app/pages/tacklebox.vue b/app/pages/tacklebox.vue
+index 1c9181d..261ed3e 100644
+--- a/app/pages/tacklebox.vue
++++ b/app/pages/tacklebox.vue
+@@ -377,7 +377,7 @@ async function removeReel(reel: TackleboxReel) {
+         <article v-for="rod in rodCards" :key="rod.id" class="panel lure-card">
+           <header class="lure-card-header">
+             <div class="lure-icon" aria-hidden="true">
+-              <img v-if="rod.icon" :src="rod.icon" alt="">
++              <img v-if="rod.icon" :src="asset(rod.icon)" alt="">
+               <span v-else>🎣</span>
+             </div>
+             <div class="lure-title">
+@@ -442,7 +442,7 @@ async function removeReel(reel: TackleboxReel) {
+         <article v-for="reel in reelCards" :key="reel.id" class="panel lure-card">
+           <header class="lure-card-header">
+             <div class="lure-icon" aria-hidden="true">
+-              <img v-if="reel.icon" :src="reel.icon" alt="">
++              <img v-if="reel.icon" :src="asset(reel.icon)" alt="">
+               <span v-else>◉</span>
+             </div>
+             <div class="lure-title">
+@@ -508,7 +508,7 @@ async function removeReel(reel: TackleboxReel) {
+         <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
+           <header class="lure-card-header">
+             <div class="lure-icon" aria-hidden="true">
+-              <img v-if="lure.icon" :src="lure.icon" alt="">
++              <img v-if="lure.icon" :src="asset(lure.icon)" alt="">
+               <span v-else>⌁</span>
+             </div>
+             <div class="lure-title">
+diff --git a/app/utils/asset.ts b/app/utils/asset.ts
+new file mode 100644
+index 0000000..d898344
+--- /dev/null
++++ b/app/utils/asset.ts
+@@ -0,0 +1,8 @@
++// Turns a path to a file in /public (e.g. '/assets/icons/rod-fly.svg') into a URL that also works when the
++// site is served from a sub-path, like GitHub Pages' https://<user>.github.io/<repo>/. Locally and in the
++// Capacitor app the base is '/' or './', so the path is returned unchanged.
++export function asset(path: string): string {
++  const base = useRuntimeConfig().app.baseURL || '/'
++  if (base === '/' || base.startsWith('.')) return path
++  return base.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, '')
++}
+diff --git a/nuxt.config.ts b/nuxt.config.ts
+index 4f8f59c..fafef55 100644
+--- a/nuxt.config.ts
++++ b/nuxt.config.ts
+@@ -1,15 +1,18 @@
+ // https://nuxt.com/docs/api/configuration/nuxt-config
+ const isCapacitorBuild = process.env.CAPACITOR_BUILD === 'true'
++// GitHub Pages build (set by .github/workflows/deploy-pages.yml): static single-page app served from /<repo>/
++const isPagesBuild = process.env.PAGES_BUILD === 'true'
++const isStaticBuild = isCapacitorBuild || isPagesBuild
+ 
+ export default defineNuxtConfig({
+   compatibilityDate: '2025-07-15',
+   devtools: { enabled: true },
+   css: ['~/assets/css/main.css'],
+-  ssr: !isCapacitorBuild,
++  ssr: !isStaticBuild,
+   app: {
+-    baseURL: isCapacitorBuild ? './' : '/'
++    baseURL: isCapacitorBuild ? './' : (process.env.NUXT_APP_BASE_URL || '/')
+   },
+-  nitro: isCapacitorBuild ? { preset: 'static' } : {},
++  nitro: isStaticBuild ? { preset: 'static' } : {},
+   runtimeConfig: {
+     public: {
+       firebaseApiKey: '',
+diff --git a/public/manifest.webmanifest b/public/manifest.webmanifest
+index f160f8d..e1f7e1f 100644
+--- a/public/manifest.webmanifest
++++ b/public/manifest.webmanifest
+@@ -1,7 +1,7 @@
+ {
+   "name": "Tidelog",
+   "short_name": "Tidelog",
+-  "start_url": "/",
++  "start_url": "./",
+   "display": "standalone",
+   "theme_color": "#0e2d3a",
+   "background_color": "#0e2d3a",

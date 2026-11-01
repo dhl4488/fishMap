@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // The trip shape is shared with the data composable and the trip-entry dialog.
-import type { FishingCombo, FishingLure, FishingTrip } from '../composables/useFishingData'
+import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { formatTripConditions } from '../utils/tripConditions'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
 
 // The composable loads data for the authenticated user and persists new trips.
-const { data, addTrip, addCombo, isOnline, loading: dataLoading, error: dataError } = useFishingData()
+const { data, addTrip, addSpot, addCombo, isOnline, loading: dataLoading, error: dataError } = useFishingData()
 const { successFeedback } = useNativeFeatures()
 // The profile name comes from the same shared Firebase session as the sidebar.
 const { name } = useUserProfile()
@@ -69,15 +69,31 @@ function dateParts(value: string) {
 }
 
 // Saves the dialog draft; accepts trip/photo data and updates the page with success feedback or a save error.
-async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhotos: Array<File | null>) {
+async function saveTrip(
+  trip: Omit<FishingTrip, 'id'>,
+  photos: File[],
+  catchPhotos: Array<File | null>,
+  favoriteSpot?: Omit<FishingSpot, 'id'>
+) {
   tripSaving.value = true
   tripSaveError.value = null
   try {
     const queued = await addTrip(trip, photos, catchPhotos)
+    let favoriteSpotError = ''
+    if (favoriteSpot) {
+      try {
+        await addSpot(favoriteSpot)
+      } catch (error) {
+        console.error('Trip saved, but the favorite spot could not be saved.', error)
+        favoriteSpotError = error instanceof Error ? error.message : 'Could not save this favorite spot.'
+      }
+    }
     tripModalOpen.value = false
-    toastMessage.value = queued
-      ? 'Trip saved on this device and will sync when connected.'
-      : 'Trip added to your diary.'
+    toastMessage.value = favoriteSpotError
+      ? `Trip saved, but the favorite spot could not be saved: ${favoriteSpotError}`
+      : queued
+        ? favoriteSpot ? 'Trip saved on this device; favorite spot saved to your map.' : 'Trip saved on this device and will sync when connected.'
+        : favoriteSpot ? 'Trip added and favorite spot saved to your map.' : 'Trip added to your diary.'
     void successFeedback()
   } catch (error) {
     // Keep the dialog open if a photo upload or trip write fails, preserving the user's draft.

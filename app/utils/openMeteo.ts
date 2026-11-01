@@ -115,9 +115,12 @@ function precipitationDescription(weatherCode: number | null, precipitation: num
 export async function fetchTripWeather(
   date: string,
   location: string,
-  spots: FishingSpot[]
+  spots: FishingSpot[],
+  pickedLocation?: { latitude: number; longitude: number }
 ): Promise<WeatherConditions> {
-  const coordinates = getCoordinates(location, spots) ?? await geocodeLocation(location.trim())
+  const coordinates = pickedLocation
+    ? { ...pickedLocation, name: location.trim() }
+    : getCoordinates(location, spots) ?? await geocodeLocation(location.trim())
   const url = new URL(getWeatherEndpoint(date))
   url.search = new URLSearchParams({
     latitude: String(coordinates.latitude),

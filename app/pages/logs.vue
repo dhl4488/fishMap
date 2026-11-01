@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FishingCombo, FishingLure, FishingTrip } from '../composables/useFishingData'
+import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { formatTripConditions } from '../utils/tripConditions'
 
 useHead({ title: 'My diary · Tidelog', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
@@ -10,6 +10,7 @@ const {
   updateTrip,
   deleteTrip,
   discardPendingTrip,
+  addSpot,
   addCombo,
   pendingTripIds,
   syncingOfflineTrips,
@@ -33,6 +34,8 @@ const comboSaveSuccess = ref<string | null>(null)
 const tripActionError = ref('')
 const exportError = ref('')
 const deletingTripId = ref<string | null>(null)
+const tripPendingDelete = ref<FishingTrip | null>(null)
+const deleteTripError = ref('')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const previousLures = computed(() => {
@@ -62,7 +65,7 @@ const filteredTrips = computed(() => [...data.value.trips]
     const catchSearchText = trip.catches
       .map(item => `${item.species} ${item.lure ?? ''} ${item.length ?? ''} ${item.weight ?? ''} ${item.released === undefined ? '' : item.released ? 'released' : 'kept'}`)
       .join(' ')
-    const searchText = `${trip.location} ${formatTripConditions(trip)} ${lureSearchText} ${gearSearchText} ${trip.waterDepth ?? ''} ${trip.notes} ${catchSearchText}`.toLowerCase()
+    const searchText = `${trip.location} ${trip.spotWater ?? ''} ${trip.spotKind ?? ''} ${trip.spotNotes ?? ''} ${formatTripConditions(trip)} ${lureSearchText} ${gearSearchText} ${trip.waterDepth ?? ''} ${trip.notes} ${catchSearchText}`.toLowerCase()
     return searchText.includes(query.value.toLowerCase()) && (yearFilter.value === 'all' || trip.date.startsWith(yearFilter.value))
   })
   .sort((a, b) => b.date.localeCompare(a.date)))
@@ -129,6 +132,9 @@ async function exportPdf() {
       const catchCount = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
       addText(`${dateParts(trip.date).full} · ${trip.location}`, { bold: true, size: 12, gapAfter: 3 })
       addText([
+        trip.spotWater && `Water / place: ${trip.spotWater}`,
+        trip.spotKind && `Spot type: ${trip.spotKind}`,
+        trip.spotNotes && `Spot notes: ${trip.spotNotes}`,
         trip.conditions && `Conditions: ${trip.conditions}`,
         trip.airTemperature && `Air temperature: ${trip.airTemperature} °C`,
         trip.waterTemperature && `Water temperature: ${trip.waterTemperature} °C`,
@@ -180,7 +186,7 @@ async function exportPdf() {
       addText([
         rod.brand && `Brand: ${rod.brand}`,
         rod.type && `Type: ${rod.type}`,
-        rod.length && `Length: ${rod.length}`,
+        rod.length && `Length: ${normalizeMeasurementToMetric(rod.length, 'rodLength')}`,
         rod.power && `Power: ${rod.power}`,
         rod.action && `Action: ${rod.action}`,
         rod.notes && `Notes: ${rod.notes}`
@@ -235,7 +241,7 @@ const csvColumns = [
   'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'species', 'quantity', 'length', 'fish_weight',
   'released', 'catch_photo', 'lure', 'lure_id', 'lure_notes', 'rod', 'hook', 'line', 'trip_weight', 'water_depth',
   'trip_notes', 'trip_photos', 'gear_type', 'name', 'brand', 'type', 'color', 'size', 'power', 'action', 'latitude',
-  'longitude', 'water', 'kind', 'notes', 'combo_lures', 'hidden_lure_key'
+  'longitude', 'water', 'kind', 'notes', 'spot_water', 'spot_type', 'spot_notes', 'combo_lures', 'hidden_lure_key'
 ]
 
 // Serializes diary, tacklebox, and spot data as CSV and starts a download; takes no input.
@@ -247,6 +253,9 @@ function exportCsv() {
       trip_id: trip.id,
       date: trip.date,
       location: trip.location,
+      spot_water: trip.spotWater,
+      spot_type: trip.spotKind,
+      spot_notes: trip.spotNotes,
       conditions: trip.conditions,
       air_temperature_c: trip.airTemperature,
       water_temperature_c: trip.waterTemperature,
@@ -301,7 +310,7 @@ function exportCsv() {
       name: rod.name,
       brand: rod.brand,
       type: rod.type,
-      size: rod.length,
+      size: normalizeMeasurementToMetric(rod.length, 'rodLength'),
       power: rod.power,
       action: rod.action,
       notes: rod.notes
@@ -375,7 +384,12 @@ function dateParts(value: string) {
 }
 
 // Creates or updates a trip; accepts trip fields and photo files and reports save status to the diary.
-async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhotos: Array<File | null>) {
+async function saveTrip(
+  trip: Omit<FishingTrip, 'id'>,
+  photos: File[],
+  catchPhotos: Array<File | null>,
+  favoriteSpot?: Omit<FishingSpot, 'id'>
+) {
   tripSaving.value = true
   tripSaveError.value = null
   try {
@@ -384,9 +398,20 @@ async function saveTrip(trip: Omit<FishingTrip, 'id'>, photos: File[], catchPhot
       toastMessage.value = 'Trip updated.'
     } else {
       const queued = await addTrip(trip, photos, catchPhotos)
-      toastMessage.value = queued
-        ? 'Trip saved on this device and will sync when connected.'
-        : 'Trip added to your diary.'
+      let favoriteSpotError = ''
+      if (favoriteSpot) {
+        try {
+          await addSpot(favoriteSpot)
+        } catch (error) {
+          console.error('Trip saved, but the favorite spot could not be saved.', error)
+          favoriteSpotError = error instanceof Error ? error.message : 'Could not save this favorite spot.'
+        }
+      }
+      toastMessage.value = favoriteSpotError
+        ? `Trip saved, but the favorite spot could not be saved: ${favoriteSpotError}`
+        : queued
+          ? favoriteSpot ? 'Trip saved on this device; favorite spot saved to your map.' : 'Trip saved on this device and will sync when connected.'
+          : favoriteSpot ? 'Trip added and favorite spot saved to your map.' : 'Trip added to your diary.'
     }
     void successFeedback()
     tripModalOpen.value = false
@@ -425,16 +450,28 @@ function editTrip(trip: FishingTrip) {
   tripModalOpen.value = true
 }
 
-// Confirms and deletes a saved or locally queued trip; accepts the trip and updates diary feedback.
-async function removeTrip(trip: FishingTrip) {
+// Opens the in-app delete confirmation; accepts the selected trip and clears any prior error.
+function requestTripDeletion(trip: FishingTrip) {
+  tripPendingDelete.value = trip
+  deleteTripError.value = ''
+}
+
+// Closes the delete confirmation; takes no input and clears its transient state.
+function cancelTripDeletion() {
+  if (deletingTripId.value) return
+  tripPendingDelete.value = null
+  deleteTripError.value = ''
+}
+
+// Deletes the confirmed saved or locally queued trip and reports the result.
+async function confirmTripDeletion() {
+  const trip = tripPendingDelete.value
+  if (!trip || deletingTripId.value) return
+
   const isPending = pendingTripIds.value.includes(trip.id)
-  const prompt = isPending
-    ? `Discard the unsynced fishing trip at ${trip.location}? This removes it from this device.`
-    : `Delete the fishing trip at ${trip.location}? This cannot be undone.`
-  if (!window.confirm(prompt)) return
 
   deletingTripId.value = trip.id
-  tripActionError.value = ''
+  deleteTripError.value = ''
   try {
     if (isPending) {
       await discardPendingTrip(trip.id)
@@ -443,10 +480,11 @@ async function removeTrip(trip: FishingTrip) {
       await deleteTrip(trip.id)
       toastMessage.value = 'Trip deleted.'
     }
+    tripPendingDelete.value = null
     clearTimeout(toastTimer)
     toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
   } catch (error) {
-    tripActionError.value = error instanceof Error ? error.message : 'Could not delete this trip.'
+    deleteTripError.value = error instanceof Error ? error.message : 'Could not delete this trip.'
   } finally {
     deletingTripId.value = null
   }
@@ -521,11 +559,16 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
               type="button"
               :disabled="deletingTripId !== null || tripSaving || (!isOnline && !pendingTripIds.includes(trip.id)) || (pendingTripIds.includes(trip.id) && syncingOfflineTrips)"
               :aria-label="`Delete trip at ${trip.location}`"
-              @click="removeTrip(trip)"
+              @click="requestTripDeletion(trip)"
             >{{ deletingTripId === trip.id ? 'Deleting…' : pendingTripIds.includes(trip.id) ? 'Discard' : 'Delete' }}</button>
           </div>
         </div>
         <p v-if="pendingTripIds.includes(trip.id)" class="pending-trip-note">Saved on this device · waiting to sync</p>
+        <p v-if="trip.spotWater || trip.spotKind || trip.spotNotes" class="entry-spot-details">
+          <span v-if="trip.spotWater">{{ trip.spotWater }}</span>
+          <span v-if="trip.spotKind">{{ trip.spotKind }}</span>
+          <span v-if="trip.spotNotes">{{ trip.spotNotes }}</span>
+        </p>
         <div v-if="trip.lures?.length || trip.rod || trip.reel || trip.hook || trip.line || trip.weight || trip.waterDepth" class="entry-trip-details">
           <div v-if="trip.lures?.length" class="entry-lures">
             <strong>Lures:</strong>
@@ -604,17 +647,67 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     @save="saveTrip"
     @save-combo="saveCombo"
   />
+  <Teleport to="body">
+    <div
+      v-if="tripPendingDelete"
+      class="modal-backdrop delete-confirm-backdrop"
+      @click.self="cancelTripDeletion"
+      @keydown.esc="cancelTripDeletion"
+    >
+      <section
+        class="modal delete-confirm-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-trip-title"
+        aria-describedby="delete-trip-description"
+      >
+        <div class="delete-confirm-icon" aria-hidden="true">!</div>
+        <p class="eyebrow">{{ pendingTripIds.includes(tripPendingDelete.id) ? 'UNSYNCED ENTRY' : 'DELETE ENTRY' }}</p>
+        <h2 id="delete-trip-title">{{ pendingTripIds.includes(tripPendingDelete.id) ? 'Discard this trip?' : 'Delete this trip?' }}</h2>
+        <p id="delete-trip-description" class="delete-confirm-copy">
+          <strong>{{ tripPendingDelete.location }}</strong>
+          <template v-if="pendingTripIds.includes(tripPendingDelete.id)"> will be removed from this device before it syncs.</template>
+          <template v-else> and its catch details will be permanently deleted. This cannot be undone.</template>
+        </p>
+        <p v-if="deleteTripError" class="auth-message auth-error" role="alert">{{ deleteTripError }}</p>
+        <div class="delete-confirm-actions">
+          <button class="cancel-button" type="button" :disabled="deletingTripId !== null" @click="cancelTripDeletion">Cancel</button>
+          <button
+            class="delete-confirm-button"
+            type="button"
+            :disabled="deletingTripId !== null"
+            @click="confirmTripDeletion"
+          >{{ deletingTripId ? 'Deleting…' : pendingTripIds.includes(tripPendingDelete.id) ? 'Discard trip' : 'Delete trip' }}</button>
+        </div>
+      </section>
+    </div>
+  </Teleport>
   <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
 </template>
 
 <style scoped>
-.diary-count { color: #929d96; font-size: 12px; margin-left: auto; }
+.delete-confirm-backdrop { z-index: 2100; }
+.delete-confirm-modal { max-width: 410px; padding: 25px; }
+.delete-confirm-icon { align-items: center; background: #fbf0ec; border: 1px solid #f1ded6; border-radius: 50%; color: #a25f45; display: flex; font-size: 19px; font-weight: 700; height: 42px; justify-content: center; margin-bottom: 15px; width: 42px; }
+.delete-confirm-modal .eyebrow { color: #a25f45; font-size: 10px; font-weight: 700; letter-spacing: .09em; margin: 0 0 5px; }
+.delete-confirm-modal h2 { color: #34433a; font: 700 20px Manrope,sans-serif; letter-spacing: -.4px; margin: 0; }
+.delete-confirm-copy { color: #748078; font-size: 13px; line-height: 1.55; margin: 9px 0 0; overflow-wrap: anywhere; }
+.delete-confirm-copy strong { color: #536158; font-weight: 600; }
+.delete-confirm-modal .auth-message { margin-top: 13px; }
+.delete-confirm-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }
+.delete-confirm-actions button { min-height: 40px; }
+.delete-confirm-actions button:disabled { cursor: wait; opacity: .6; }
+.delete-confirm-button { background: #a3543d; border: 1px solid #a3543d; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 600; padding: 9px 14px; }
+.delete-confirm-button:hover:not(:disabled) { background: #8d4633; border-color: #8d4633; }
+.diary-count { align-items: center; background: #eaf2ec; border: 1px solid #d9e7da; border-radius: 999px; color: #315f48; display: inline-flex; font-size: 12px; font-weight: 700; justify-content: center; margin-left: auto; min-height: 32px; padding: 0 11px; white-space: nowrap; }
 .offline-banner { align-items: center; background: #edf5ed; border: 1px solid #dbe8da; border-radius: 9px; color: #46694c; display: flex; flex-wrap: wrap; font-size: 12px; gap: 8px; line-height: 1.45; margin: 0 0 14px; padding: 10px 12px; }
 .offline-banner-error { background: #fbf0ec; border-color: #f1ded6; color: #985b45; }
 .offline-indicator { background: #6c9469; border-radius: 50%; flex: 0 0 8px; height: 8px; }
 .offline-banner-error .offline-indicator { background: #b87558; }
 .offline-sync-button { background: #fff; border: 1px solid #d5e1d4; border-radius: 6px; color: #46694c; font-size: 12px; margin-left: auto; min-height: 32px; padding: 4px 10px; }
 .pending-trip-note { background: #f5f8f2; border-radius: 6px; color: #6a815e; font-size: 12px; margin: 10px 0 0; padding: 7px 9px; }
+.entry-spot-details { color: #89958e; display: flex; flex-wrap: wrap; font-size: 12px; gap: 5px 12px; margin: 10px 0 0; }
+.entry-spot-details span + span::before { color: #bbc4bc; content: '·'; margin-right: 12px; }
 .heading-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .heading-actions .secondary-button { min-height: 38px; padding: 0 11px; }
 .heading-actions .secondary-button:disabled { cursor: wait; opacity: .55; }

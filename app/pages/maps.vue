@@ -191,7 +191,10 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         </article>
 
         <section class="panel spot-browser">
-          <div class="section-heading"><h2>Your saved spots</h2><span style="color:#9aa59e;font-size:12px">{{ data.spots.length }}</span></div>
+          <div class="section-heading">
+            <h2>Your saved spots</h2>
+            <span class="spot-count" :aria-label="`${data.spots.length} saved spots`">{{ data.spots.length }}</span>
+          </div>
           <p v-if="spotActionError" class="auth-message auth-error" role="alert">{{ spotActionError }}</p>
           <div v-for="spot in data.spots" :key="spot.id" class="spot-select-row">
             <button
@@ -261,6 +264,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 .spot-delete-button:hover:not(:disabled) { background: #fbf0ec; border-color: #f0d8ce; }
 .spot-delete-button:disabled { cursor: wait; opacity: .55; }
 .spot-browser .auth-message { margin-bottom: 8px; }
+.spot-count { align-items: center; background: #eaf2ec; border: 1px solid #d9e7da; border-radius: 999px; color: #315f48; display: inline-flex; font: 700 13px/1 Manrope,sans-serif; justify-content: center; min-height: 29px; min-width: 33px; padding: 0 9px; }
 @media (max-width: 500px) {
   .spot-delete-button { flex-basis: 44px; height: 44px; }
 }

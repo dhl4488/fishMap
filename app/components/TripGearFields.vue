@@ -65,15 +65,15 @@ function selectSavedReelById(id: string) {
   </div>
   <div class="form-field">
     <label for="trip-line">Line</label>
-    <input id="trip-line" v-model="line" placeholder="e.g. 10 lb fluorocarbon" maxlength="80">
+    <input id="trip-line" v-model="line" placeholder="e.g. 4.5 kg fluorocarbon" maxlength="80">
   </div>
   <div class="form-field">
     <label for="trip-weight">Weight</label>
-    <input id="trip-weight" v-model="weight" placeholder="e.g. 1/4 oz" maxlength="40">
+    <input id="trip-weight" v-model="weight" placeholder="e.g. 7 g" maxlength="40">
   </div>
   <div class="form-field">
     <label for="trip-water-depth">Water depth</label>
-    <input id="trip-water-depth" v-model="waterDepth" placeholder="e.g. 12 ft or 4 m" maxlength="40">
+    <input id="trip-water-depth" v-model="waterDepth" placeholder="e.g. 4 m" maxlength="40">
   </div>
 </template>
 

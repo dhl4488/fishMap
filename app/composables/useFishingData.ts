@@ -77,6 +77,11 @@ export interface FishingTrip {
   id: string
   date: string
   location: string
+  latitude?: number
+  longitude?: number
+  spotWater?: string
+  spotKind?: string
+  spotNotes?: string
   catches: FishingCatch[]
   conditions: string
   airTemperature?: string
@@ -192,6 +197,12 @@ function isFishingTrip(value: unknown): value is FishingTrip {
   return typeof trip.id === 'string' &&
     typeof trip.date === 'string' &&
     typeof trip.location === 'string' &&
+    ((trip.latitude === undefined && trip.longitude === undefined) ||
+      (typeof trip.latitude === 'number' && Number.isFinite(trip.latitude) && trip.latitude >= -90 && trip.latitude <= 90 &&
+        typeof trip.longitude === 'number' && Number.isFinite(trip.longitude) && trip.longitude >= -180 && trip.longitude <= 180)) &&
+    (trip.spotWater === undefined || typeof trip.spotWater === 'string') &&
+    (trip.spotKind === undefined || typeof trip.spotKind === 'string') &&
+    (trip.spotNotes === undefined || typeof trip.spotNotes === 'string') &&
     Array.isArray(trip.catches) &&
     trip.catches.every(isFishingCatch) &&
     typeof trip.conditions === 'string' &&

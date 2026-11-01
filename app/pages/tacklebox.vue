@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/useFishingData'
 import { lureTypes, reelTypes, rodTypes } from '../utils/tackleboxGear'
+import { normalizeMeasurementToMetric } from '../utils/tripInputValidation'
 
 useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lures, rods, and reels and see what you have caught with them.' }] })
 
@@ -371,13 +372,14 @@ async function removeReel(reel: TackleboxReel) {
     <section class="rod-inventory">
       <div class="section-heading">
         <div><h2>Your rods</h2><p>Optionally add a rod to each trip log.</p></div>
+        <span class="inventory-count" :aria-label="`${rodCards.length} rods`">{{ rodCards.length }}</span>
         <button class="secondary-button" type="button" @click="openRodForm()">＋ Add a rod</button>
       </div>
       <div v-if="rodCards.length" class="rod-grid">
         <article v-for="rod in rodCards" :key="rod.id" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="rod.icon" :src="rod.icon" alt="">
+              <img v-if="rod.icon" :src="asset(rod.icon)" alt="">
               <span v-else>🎣</span>
             </div>
             <div class="lure-title">
@@ -403,7 +405,7 @@ async function removeReel(reel: TackleboxReel) {
           <dl v-if="rod.brand || rod.type || rod.length || rod.power || rod.action" class="lure-details">
             <div v-if="rod.brand"><dt>Brand</dt><dd>{{ rod.brand }}</dd></div>
             <div v-if="rod.type"><dt>Type</dt><dd>{{ rod.type }}</dd></div>
-            <div v-if="rod.length"><dt>Length</dt><dd>{{ rod.length }}</dd></div>
+            <div v-if="rod.length"><dt>Length</dt><dd>{{ normalizeMeasurementToMetric(rod.length, 'rodLength') }}</dd></div>
             <div v-if="rod.power"><dt>Power</dt><dd>{{ rod.power }}</dd></div>
             <div v-if="rod.action"><dt>Action</dt><dd>{{ rod.action }}</dd></div>
           </dl>
@@ -436,13 +438,14 @@ async function removeReel(reel: TackleboxReel) {
     <section class="reel-inventory">
       <div class="section-heading">
         <div><h2>Your reels</h2><p>Keep track of the reels in your setup.</p></div>
+        <span class="inventory-count" :aria-label="`${reelCards.length} reels`">{{ reelCards.length }}</span>
         <button class="secondary-button" type="button" @click="openReelForm()">＋ Add a reel</button>
       </div>
       <div v-if="reelCards.length" class="reel-grid">
         <article v-for="reel in reelCards" :key="reel.id" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="reel.icon" :src="reel.icon" alt="">
+              <img v-if="reel.icon" :src="asset(reel.icon)" alt="">
               <span v-else>◉</span>
             </div>
             <div class="lure-title">
@@ -501,6 +504,7 @@ async function removeReel(reel: TackleboxReel) {
     <section class="lure-inventory">
       <div class="section-heading">
         <div><h2>Your lures</h2><p>See which lures have been working on your trips.</p></div>
+        <span class="inventory-count" :aria-label="`${lureSummaries.length} lures`">{{ lureSummaries.length }}</span>
         <button class="secondary-button" type="button" @click="openLureForm()">＋ Add a lure</button>
       </div>
       <div v-if="loading" class="panel empty-state empty-panel">Loading your tacklebox…</div>
@@ -508,7 +512,7 @@ async function removeReel(reel: TackleboxReel) {
         <article v-for="lure in lureSummaries" :key="lure.key" class="panel lure-card">
           <header class="lure-card-header">
             <div class="lure-icon" aria-hidden="true">
-              <img v-if="lure.icon" :src="lure.icon" alt="">
+              <img v-if="lure.icon" :src="asset(lure.icon)" alt="">
               <span v-else>⌁</span>
             </div>
             <div class="lure-title">
@@ -607,6 +611,7 @@ async function removeReel(reel: TackleboxReel) {
 .tackle-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rod-inventory,.reel-inventory,.lure-inventory { background: #fff; border: 1px solid #e4e9e3; border-radius: 12px; margin: 0 0 20px; padding: 18px; }
 .rod-inventory .section-heading,.reel-inventory .section-heading,.lure-inventory .section-heading { align-items: center; gap: 12px; }
+.inventory-count { align-items: center; background: #eaf2ec; border: 1px solid #d9e7da; border-radius: 999px; color: #315f48; display: inline-flex; flex: 0 0 auto; font: 700 14px/1 Manrope,sans-serif; justify-content: center; min-height: 32px; min-width: 36px; padding: 0 10px; }
 .rod-inventory .section-heading h2,.reel-inventory .section-heading h2,.lure-inventory .section-heading h2 { font: 700 15px Manrope, sans-serif; margin: 0 0 4px; }
 .rod-inventory .section-heading p,.reel-inventory .section-heading p,.lure-inventory .section-heading p { color: #89958e; font-size: 12px; margin: 0; }
 .rod-inventory .section-heading .secondary-button,.reel-inventory .section-heading .secondary-button,.lure-inventory .section-heading .secondary-button { flex: 0 0 auto; white-space: nowrap; }
@@ -624,9 +629,9 @@ async function removeReel(reel: TackleboxReel) {
 .lure-action:hover:not(:disabled) { border-color: #a6b9a8; }
 .lure-remove { color: #985b45; font-size: 17px; min-width: 32px; }
 .lure-action:disabled { cursor: wait; opacity: .55; }
-.lure-total { display: grid; margin-left: 5px; min-width: 40px; text-align: right; }
-.lure-total strong { color: #315f48; font: 700 18px Manrope, sans-serif; }
-.lure-total span { color: #8a9690; font-size: 12px; }
+.lure-total { align-items: center; background: #edf5ed; border: 1px solid #dce9dc; border-radius: 9px; display: grid; margin-left: 5px; min-width: 58px; padding: 5px 8px; text-align: center; }
+.lure-total strong { color: #315f48; font: 700 19px/1.1 Manrope, sans-serif; }
+.lure-total span { color: #53765d; font-size: 11px; font-weight: 600; }
 .lure-details { border-top: 1px solid #f0f2ee; display: grid; gap: 9px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 14px 0 0; padding-top: 12px; }
 .lure-details div { min-width: 0; }
 .lure-details dt { color: #8a9690; font-size: 12px; margin-bottom: 3px; }
@@ -655,5 +660,6 @@ async function removeReel(reel: TackleboxReel) {
   .lure-card { padding: 14px; }
   .lure-card-header { align-items: flex-start; flex-wrap: wrap; }
   .lure-actions { flex-wrap: wrap; }
+  .inventory-count { min-height: 30px; min-width: 34px; }
 }
 </style>
