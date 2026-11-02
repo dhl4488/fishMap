@@ -11,6 +11,9 @@ const selectedSpotId = ref('')
 const waterFilter = ref('')
 const kindFilter = ref('')
 const showTripMarkers = ref(false)
+const showCatchHeatmap = ref(false)
+const heatmapSpecies = ref('')
+const heatmapSeason = ref('all')
 const selectedTripId = ref('')
 const spotModalOpen = ref(false)
 const pickMode = ref(false)
@@ -48,6 +51,39 @@ const mappableTrips = computed(() => showTripMarkers.value
   ? data.value.trips.filter(trip => trip.latitude !== undefined && trip.longitude !== undefined)
   : [])
 const selectedTrip = computed(() => mappableTrips.value.find(trip => trip.id === selectedTripId.value))
+const locatedCatchTrips = computed(() => data.value.trips.filter(trip =>
+  trip.latitude !== undefined && trip.longitude !== undefined &&
+  trip.catches.some(item => item.quantity > 0)
+))
+const locatedCatchCount = computed(() => locatedCatchTrips.value.reduce(
+  (total, trip) => total + trip.catches.reduce((sum, item) => sum + item.quantity, 0),
+  0
+))
+const heatmapReady = computed(() => locatedCatchTrips.value.length >= 3 && locatedCatchCount.value >= 5)
+const heatmapSpeciesOptions = computed(() => [...new Set(locatedCatchTrips.value.flatMap(trip =>
+  trip.catches.map(item => item.species.trim()).filter(Boolean)
+))].sort((a, b) => a.localeCompare(b)))
+const seasonOptions = ['Spring', 'Summer', 'Fall', 'Winter']
+function tripSeason(date: string) {
+  const month = Number(date.slice(5, 7))
+  if ([2, 3, 4].includes(month)) return 'Spring'
+  if ([5, 6, 7].includes(month)) return 'Summer'
+  if ([8, 9, 10].includes(month)) return 'Fall'
+  return 'Winter'
+}
+const filteredHeatmapTrips = computed(() => locatedCatchTrips.value
+  .filter(trip => heatmapSeason.value === 'all' || tripSeason(trip.date) === heatmapSeason.value)
+  .map((trip) => {
+    const catches = trip.catches.filter(item => !heatmapSpecies.value || item.species === heatmapSpecies.value)
+    return { ...trip, catches }
+  })
+  .filter(trip => trip.catches.some(item => item.quantity > 0)))
+const filteredHeatmapFishCount = computed(() => filteredHeatmapTrips.value.reduce(
+  (total, trip) => total + trip.catches.reduce((sum, item) => sum + item.quantity, 0),
+  0
+))
+const filteredHeatmapReady = computed(() => filteredHeatmapTrips.value.length >= 3 && filteredHeatmapFishCount.value >= 5)
+const heatmapTrips = computed(() => showCatchHeatmap.value && filteredHeatmapReady.value ? filteredHeatmapTrips.value : [])
 watch(() => data.value.spots, (spots) => {
   const firstSpot = spots[0]
   if (!selectedSpotId.value && firstSpot) selectedSpotId.value = firstSpot.id
@@ -224,12 +260,46 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       <span v-if="showTripMarkers" class="trip-marker-legend"><i aria-hidden="true" />Past trips</span>
       <span class="map-filter-count">{{ filteredSpots.length }} of {{ data.spots.length }} spots shown<span v-if="showTripMarkers"> · {{ mappableTrips.length }} trips mapped</span></span>
     </section>
-
+    <section class="catch-density-filters panel" aria-label="Catch heatmap filters">
+      <label class="trip-marker-toggle">
+        <input v-model="showCatchHeatmap" type="checkbox" :disabled="!heatmapReady">
+        <span>Show catch heatmap</span>
+      </label>
+      <template v-if="heatmapReady">
+        <label>
+          Species
+          <select v-model="heatmapSpecies">
+            <option value="">All species</option>
+            <option v-for="species in heatmapSpeciesOptions" :key="species" :value="species">{{ species }}</option>
+          </select>
+        </label>
+        <label>
+          Season
+          <select v-model="heatmapSeason">
+            <option value="all">All seasons</option>
+            <option v-for="season in seasonOptions" :key="season" :value="season">{{ season }}</option>
+          </select>
+        </label>
+        <span v-if="showCatchHeatmap && filteredHeatmapReady" class="heatmap-explainer">
+          {{ filteredHeatmapFishCount }} fish across {{ filteredHeatmapTrips.length }} trips · blurred catch locations, not fishing effort
+        </span>
+        <span v-else-if="showCatchHeatmap" class="heatmap-explainer">
+          This filter leaves {{ filteredHeatmapFishCount }} fish across {{ filteredHeatmapTrips.length }} trips. At least 5 fish across 3 trips are needed to draw the heatmap.
+        </span>
+      </template>
+      <span v-else-if="dataLoading" class="heatmap-explainer">
+        Loading trip locations before checking heatmap eligibility…
+      </span>
+      <span v-else class="heatmap-explainer">
+        Catch heatmap unlocks with at least 5 caught fish across 3 trips with coordinates. Current: {{ locatedCatchCount }} fish across {{ locatedCatchTrips.length }} trips.
+      </span>
+    </section>
     <div class="map-layout">
       <section class="map-panel" aria-label="Map of selected fishing spot">
         <FishingMap
           :spots="filteredSpots"
           :trips="mappableTrips"
+          :heatmap-trips="heatmapTrips"
           :selected-spot-id="selectedSpot?.id"
           :pick-mode="pickMode"
           :picked-location="pickedLocation"
@@ -343,6 +413,11 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 .trip-marker-legend { align-items: center; color: #718078; display: inline-flex; font-size: 12px; gap: 6px; min-height: 38px; }
 .trip-marker-legend i { background: #8066a8; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px #8066a8; height: 11px; width: 11px; }
 .map-filter-count { color: #89958e; font-size: 12px; margin-left: auto; min-height: 38px; display: flex; align-items: center; }
+.catch-density-filters { align-items: end; display: flex; flex-wrap: wrap; gap: 12px; margin: -5px 0 15px; padding: 12px 15px; }
+.catch-density-filters > label:not(.trip-marker-toggle) { color: #58675e; display: grid; flex: 0 1 190px; font-size: 12px; font-weight: 600; gap: 5px; }
+.catch-density-filters select { background: white; border: 1px solid #e3e8e2; border-radius: 7px; color: #536158; font-size: 12px; min-height: 38px; padding: 8px 10px; }
+.catch-density-filters input:disabled { cursor: not-allowed; }
+.heatmap-explainer { color: #89958e; flex: 1 1 260px; font-size: 11px; line-height: 1.45; }
 .selected-trip-summary { display: grid; gap: 7px; padding: 14px; }
 .selected-trip-summary .section-heading { margin: 0; }
 .selected-trip-summary .section-heading h2 { font-size: 13px; }

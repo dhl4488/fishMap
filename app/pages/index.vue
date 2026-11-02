@@ -3,6 +3,16 @@
 import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { formatTripConditions } from '../utils/tripConditions'
 import { formatCatchTime, getFishingInsights, getHourlyCatchTotals, getSeasonalCatchTrends } from '../utils/fishingInsights'
+import {
+  getSpotCatchRates,
+  getSpotConditionInsights,
+  getSunTimingInsight,
+  MIN_CONDITION_GROUP_TRIPS,
+  MIN_CONDITION_TRIPS,
+  MIN_SPOT_RATE_TRIPS,
+  MIN_SUN_TIMED_FISH,
+  MIN_SUN_TRIPS
+} from '../utils/advancedFishingInsights'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
@@ -27,6 +37,18 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 const trips = computed(() => [...data.value.trips].sort((a, b) => b.date.localeCompare(a.date)))
 const insights = computed(() => getFishingInsights(data.value.trips))
 const hourlyCatchTotals = computed(() => getHourlyCatchTotals(data.value.trips))
+const spotCatchRates = computed(() => getSpotCatchRates(data.value.trips))
+const spotConditionInsights = computed(() => getSpotConditionInsights(data.value.trips))
+const sunTiming = computed(() => getSunTimingInsight(data.value.trips))
+const tripsWithDuration = computed(() => data.value.trips.filter(trip => trip.hoursFished !== undefined).length)
+const mappedCatchTrips = computed(() => data.value.trips.filter(trip =>
+  trip.latitude !== undefined && trip.longitude !== undefined &&
+  trip.catches.some(item => item.quantity > 0)
+))
+const mappedCatchCount = computed(() => mappedCatchTrips.value.reduce(
+  (total, trip) => total + trip.catches.reduce((sum, item) => sum + item.quantity, 0),
+  0
+))
 const timedCatchCount = computed(() => hourlyCatchTotals.value.reduce((sum, item) => sum + item.quantity, 0))
 const peakCatchHour = computed(() => hourlyCatchTotals.value.reduce(
   (peak, hour) => hour.quantity > peak.quantity ? hour : peak,
@@ -293,6 +315,70 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         </div>
         <p v-else class="catch-time-empty">Add an approximate time to catches to see when you fish most successfully.</p>
       </div>
+      <div class="advanced-insights-grid">
+        <article class="advanced-insight-panel panel">
+          <div class="section-heading">
+            <div><h3>Catch rate by spot</h3><span>Fish per recorded hour</span></div>
+            <NuxtLink to="/maps">Open map →</NuxtLink>
+          </div>
+          <div v-if="dataLoading" class="advanced-insight-empty">Loading your trip durations…</div>
+          <div v-else-if="spotCatchRates.length" class="advanced-insight-list">
+            <div v-for="spot in spotCatchRates.slice(0, 5)" :key="spot.key" class="advanced-insight-row">
+              <span><strong>{{ spot.location }}</strong><small>{{ spot.trips }} trips · {{ spot.catches }} fish / {{ spot.hours.toFixed(1) }} hours</small></span>
+              <b>{{ spot.rate.toFixed(2) }} fish/hr</b>
+            </div>
+            <p class="insight-transparency">Trips are grouped by spot name and water; only trips with a recorded duration count. Each spot needs at least {{ MIN_SPOT_RATE_TRIPS }} trips. Rates describe your log, not guaranteed future results.</p>
+          </div>
+          <p v-else class="advanced-insight-empty">
+            Add time fished to at least {{ MIN_SPOT_RATE_TRIPS }} trips at the same spot to see a rate.
+            {{ tripsWithDuration }} {{ tripsWithDuration === 1 ? 'trip has' : 'trips have' }} a duration so far.
+          </p>
+        </article>
+        <article class="advanced-insight-panel panel">
+          <div class="section-heading">
+            <div><h3>Conditions at your spots</h3><span>Exploratory catch-rate comparisons</span></div>
+          </div>
+          <div v-if="dataLoading" class="advanced-insight-empty">Loading your trip conditions…</div>
+          <div v-else-if="spotConditionInsights.length" class="advanced-insight-list">
+            <div v-for="(insight, index) in spotConditionInsights" :key="`${insight.location}-${insight.condition}-${index}`" class="advanced-insight-row condition-insight-row">
+              <span><strong>{{ insight.location }} · {{ insight.condition }}</strong><small>{{ insight.sampleSize }} trips vs. {{ insight.comparisonSampleSize }} other trips</small></span>
+              <b>{{ insight.rate.toFixed(2) }} vs. {{ insight.comparisonRate.toFixed(2) }} fish/hr</b>
+            </div>
+            <p class="insight-transparency">These are historical associations, not proof that a condition caused better fishing; stored weather may be a daily estimate. Comparisons use recorded wind direction, air-temperature bands, cloud cover, and precipitation—not barometric pressure. At least {{ MIN_CONDITION_GROUP_TRIPS }} trips are required in each group.</p>
+          </div>
+          <p v-else class="advanced-insight-empty">
+            A comparison needs at least {{ MIN_CONDITION_TRIPS }} duration-recorded trips at one spot, including {{ MIN_CONDITION_GROUP_TRIPS }} trips in a condition group and {{ MIN_CONDITION_GROUP_TRIPS }} comparison trips. No supported condition group with a higher logged rate is available yet. {{ tripsWithDuration }} trips currently include a duration.
+          </p>
+        </article>
+      </div>
+      <article class="sun-timing-insight panel">
+        <div class="section-heading">
+          <div><h3>Catch timing around sunrise and sunset</h3><span>Calculated locally from catch time, trip date, and coordinates</span></div>
+        </div>
+        <p v-if="dataLoading" class="advanced-insight-empty">Loading your timed catches…</p>
+        <template v-else-if="sunTiming.insight">
+          <strong>{{ sunTiming.insight.percentWithinSunWindow }}% of timed fish were caught within 90 minutes of sunrise or sunset</strong>
+          <p>For catches nearest {{ sunTiming.insight.nearestEvent }}, the average was {{ Math.abs(Math.round(sunTiming.insight.averageMinutesFromEvent)) }} minutes {{ sunTiming.insight.averageMinutesFromEvent < 0 ? 'before' : 'after' }} that event.</p>
+          <p>Based on {{ sunTiming.insight.timedFish }} fish across {{ sunTiming.insight.trips }} trips. Average sun altitude at catch time: {{ sunTiming.insight.averageSunAltitude.toFixed(1) }}°.</p>
+        </template>
+        <p v-else class="advanced-insight-empty">
+          This appears after at least {{ MIN_SUN_TIMED_FISH }} fish with an approximate time across {{ MIN_SUN_TRIPS }} trips have coordinates and usable sunrise/sunset data.
+          Current usable sample: {{ sunTiming.timedFish }} fish across {{ sunTiming.trips }} trips. This is the share of logged catches, not catch rate by time of day.
+        </p>
+      </article>
+      <article class="heatmap-summary panel">
+        <div>
+          <h3>Catch heatmap</h3>
+          <p v-if="dataLoading">Loading trip locations…</p>
+          <p v-else>{{ mappedCatchCount }} fish from {{ mappedCatchTrips.length }} located trips are available for mapping.</p>
+          <small v-if="dataLoading">Heatmap eligibility will appear when your trips finish loading.</small>
+          <small v-else-if="mappedCatchTrips.length < 3 || mappedCatchCount < 5">
+            The heatmap appears on your map once it has at least 5 located fish across 3 trips.
+          </small>
+          <small v-else>Filter the catch-density layer by species and season on your map. It shows catch locations, not fishing effort.</small>
+        </div>
+        <NuxtLink class="secondary-button" to="/maps">Open map</NuxtLink>
+      </article>
     </section>
 
     <section class="trip-comparison panel" aria-label="Compare fishing trips">

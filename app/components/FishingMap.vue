@@ -5,6 +5,7 @@ import type { FishingSpot, FishingTrip } from '../composables/useFishingData'
 const props = defineProps<{
   spots: FishingSpot[]
   trips?: FishingTrip[]
+  heatmapTrips?: FishingTrip[]
   selectedSpotId?: string
   selectedTripId?: string
   pickMode?: boolean
@@ -26,6 +27,7 @@ let map: Leaflet.Map | null = null
 let leaflet: typeof Leaflet | null = null
 const spotMarkers = new Map<string, Leaflet.Marker>()
 const tripMarkers = new Map<string, Leaflet.CircleMarker>()
+let heatmapLayer: Leaflet.LayerGroup | null = null
 let pickedMarker: Leaflet.Marker | null = null
 let searchController: AbortController | null = null
 
@@ -91,6 +93,28 @@ function renderTrips() {
       .on('click', () => emit('selectTrip', trip.id))
     tripMarkers.set(trip.id, marker)
   }
+}
+
+function renderCatchDensity() {
+  heatmapLayer?.remove()
+  heatmapLayer = null
+  if (!map || !leaflet || !props.heatmapTrips?.length) return
+
+  const layer = leaflet.layerGroup()
+  for (const trip of props.heatmapTrips) {
+    if (trip.latitude === undefined || trip.longitude === undefined) continue
+    const quantity = trip.catches.reduce((total, item) => total + item.quantity, 0)
+    if (quantity <= 0) continue
+    leaflet.circle([trip.latitude, trip.longitude], {
+      radius: 650,
+      stroke: false,
+      fillColor: '#f06c42',
+      fillOpacity: Math.min(0.38, 0.13 + Math.log2(quantity + 1) * 0.07),
+      interactive: false,
+      className: 'catch-density-kernel'
+    }).addTo(layer)
+  }
+  heatmapLayer = layer.addTo(map)
 }
 
 // Adds, moves, or removes the in-progress location marker; takes no input and synchronizes it with the picked location.
@@ -199,6 +223,7 @@ onMounted(async () => {
     emit('pick', { latitude: event.latlng.lat, longitude: event.latlng.lng })
   })
 
+  renderCatchDensity()
   renderSpots()
   renderTrips()
   renderPickedLocation()
@@ -206,6 +231,7 @@ onMounted(async () => {
 })
 
 watch(() => props.spots, renderSpots, { deep: true })
+watch(() => props.heatmapTrips, renderCatchDensity, { deep: true })
 watch(() => props.trips, renderTrips, { deep: true })
 watch(() => props.selectedSpotId, (spotId) => {
   renderSpots()
@@ -263,6 +289,7 @@ onBeforeUnmount(() => {
 .tidelog-map-marker-pin { align-items: center; background: #316b53; border: 2px solid white; border-radius: 50% 50% 50% 0; box-shadow: 0 2px 6px #20382c66; display: flex; height: 22px; justify-content: center; transform: rotate(-45deg); width: 22px; }
 .tidelog-map-marker-pin i { background: white; border-radius: 50%; height: 6px; width: 6px; }
 .tidelog-map-marker-pin.is-selected { background: #d38b57; }
+.catch-density-kernel { filter: blur(9px); }
 .fishing-map-picking .leaflet-container { cursor: crosshair; }
 .fishing-map .leaflet-control-attribution { font-size: 12px; }
 .map-search { max-width: min(430px, calc(100% - 64px)); position: absolute; right: 12px; top: 12px; z-index: 1100; }

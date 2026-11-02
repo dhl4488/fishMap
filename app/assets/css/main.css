@@ -140,6 +140,31 @@ h1,h2,h3,p { margin-top: 0; }
 .catch-time-track { align-items: end; background: transparent; display: flex; height: 100%; justify-content: center; width: 100%; }
 .catch-time-track > span { background: #76977c; border-radius: 4px 4px 0 0; display: block; max-width: 15px; min-height: 0; width: 70%; }
 .catch-time-empty { margin: 0; }
+.advanced-insights-grid { display: grid; gap: 11px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 11px; }
+.advanced-insight-panel { min-width: 0; padding: 14px 16px; }
+.advanced-insight-panel .section-heading { align-items: flex-start; margin-bottom: 10px; }
+.advanced-insight-panel .section-heading h3,.sun-timing-insight h3,.heatmap-summary h3 { font: 700 13px Manrope,sans-serif; margin: 0 0 3px; }
+.advanced-insight-panel .section-heading span { color: #89958e; font-size: 12px; }
+.advanced-insight-panel .section-heading > a { color: #63836d; flex: 0 0 auto; font-size: 12px; }
+.advanced-insight-list { display: grid; gap: 8px; }
+.advanced-insight-row { align-items: center; border-bottom: 1px solid #f0f2ee; display: flex; gap: 10px; justify-content: space-between; padding-bottom: 8px; }
+.advanced-insight-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.advanced-insight-row > span { display: grid; gap: 3px; min-width: 0; }
+.advanced-insight-row strong { color: #536158; font-size: 12px; overflow-wrap: anywhere; }
+.advanced-insight-row small { color: #89958e; font-size: 11px; }
+.advanced-insight-row > b { color: #316b53; flex: 0 0 auto; font-size: 12px; text-align: right; }
+.condition-insight-row { align-items: flex-start; }
+.insight-transparency,.advanced-insight-empty { color: #89958e; font-size: 11px; line-height: 1.5; margin: 10px 0 0; }
+.advanced-insight-empty { font-size: 12px; margin: 0; }
+.sun-timing-insight { margin-top: 11px; padding: 14px 16px; }
+.sun-timing-insight .section-heading { margin-bottom: 10px; }
+.sun-timing-insight .section-heading span { color: #89958e; font-size: 12px; }
+.sun-timing-insight > strong { color: #316b53; font-size: 15px; }
+.sun-timing-insight > p { color: #718078; font-size: 12px; line-height: 1.5; margin: 7px 0 0; }
+.heatmap-summary { align-items: center; display: flex; gap: 14px; justify-content: space-between; margin-top: 11px; padding: 13px 16px; }
+.heatmap-summary p,.heatmap-summary small { color: #89958e; display: block; font-size: 12px; line-height: 1.45; margin: 4px 0 0; }
+.heatmap-summary small { font-size: 11px; }
+.heatmap-summary .secondary-button { flex: 0 0 auto; }
 .trip-comparison { margin-bottom: 28px; padding: 19px; }
 .comparison-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
 .comparison-heading .eyebrow { font-size: 11px; margin-bottom: 5px; }
@@ -290,6 +315,9 @@ h1,h2,h3,p { margin-top: 0; }
   .dashboard-grid { gap: 25px; }
   .trip-comparison { padding: 14px; }
   .seasonal-insights { padding: 14px; }
+  .advanced-insights-grid { grid-template-columns: minmax(0,1fr); }
+  .heatmap-summary { align-items: flex-start; flex-direction: column; }
+  .heatmap-summary .secondary-button { align-self: stretch; }
   .monthly-trend-chart { gap: 3px; }
   .monthly-trend-count,.monthly-trend-label { font-size: 9px; }
   .comparison-selectors { grid-template-columns: minmax(0,1fr); }

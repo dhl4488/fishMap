@@ -57,6 +57,7 @@ const nextCatchId = ref(0)
 const lures = ref<TripLureDraft[]>([])
 const nextLureId = ref(0)
 const conditions = ref('')
+const hoursFished = ref<string | number>('')
 const airTemperature = ref<string | number>('')
 const waterTemperature = ref<string | number>('')
 const windSpeed = ref<string | number>('')
@@ -152,6 +153,7 @@ function resetDraft(trip: FishingTrip | null = null) {
     : [newCatch()]
   date.value = trip?.date ?? today.value
   conditions.value = trip?.conditions ?? ''
+  hoursFished.value = trip?.hoursFished ?? ''
   airTemperature.value = trip?.airTemperature ?? ''
   waterTemperature.value = trip?.waterTemperature ?? ''
   windSpeed.value = trip?.windSpeed ?? ''
@@ -415,6 +417,10 @@ function submitTrip() {
     submissionError.value = 'Wind speed must be between 0 and 500 km/h.'
     return
   }
+  if (!isWithinNumericRange(hoursFished.value, 0.25, 24)) {
+    submissionError.value = 'Time fished must be between 0.25 and 24 hours.'
+    return
+  }
   if (!isWithinMeasurementRange(weight.value, 'tackleWeight')) {
     submissionError.value = 'Tackle weight must be a positive measurement no greater than 45 kg.'
     return
@@ -482,6 +488,7 @@ function submitTrip() {
     spotNotes: spotNotes.value.trim(),
     catches: tripCatches,
     conditions: conditions.value.trim(),
+    ...(String(hoursFished.value).trim() ? { hoursFished: Number(hoursFished.value) } : {}),
     ...(String(airTemperature.value).trim() ? { airTemperature: String(airTemperature.value).trim() } : {}),
     ...(String(waterTemperature.value).trim() ? { waterTemperature: String(waterTemperature.value).trim() } : {}),
     ...(String(windSpeed.value).trim() ? { windSpeed: String(windSpeed.value).trim() } : {}),
@@ -569,6 +576,11 @@ function submitTrip() {
               <div class="form-field">
                 <label for="trip-date">Date</label>
                 <input id="trip-date" v-model="date" type="date" :max="today" required>
+              </div>
+              <div class="form-field">
+                <label for="trip-hours-fished">Time fished (hours) <span>(optional)</span></label>
+                <input id="trip-hours-fished" v-model="hoursFished" type="number" min="0.25" max="24" step="0.25" placeholder="e.g. 4">
+                <small class="trip-duration-help">Used to compare catch rates. Leave blank if you’re unsure.</small>
               </div>
               <div class="trip-environmental-fields form-field-full">
                 <div class="trip-environmental-heading">
@@ -784,6 +796,7 @@ function submitTrip() {
 .trip-modal .trip-weather-status { color: #718078; }
 .trip-modal .trip-weather-attribution a { color: #477353; text-decoration: underline; text-underline-offset: 2px; }
 .trip-modal .trip-weather-error { color: #985b45; }
+.trip-modal .trip-duration-help { color: #89958e; font-size: 12px; font-weight: 400; line-height: 1.4; }
 .trip-modal .trip-environmental-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .trip-modal :deep(.trip-section-grid > .form-field-full) { grid-column: 1 / -1; }
 .trip-modal :deep(.form-field) { gap: 8px; }

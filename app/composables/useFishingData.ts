@@ -88,6 +88,7 @@ export interface FishingTrip {
   spotNotes?: string
   catches: FishingCatch[]
   conditions: string
+  hoursFished?: number
   airTemperature?: string
   waterTemperature?: string
   windSpeed?: string
@@ -211,6 +212,7 @@ function isFishingTrip(value: unknown): value is FishingTrip {
     Array.isArray(trip.catches) &&
     trip.catches.every(isFishingCatch) &&
     typeof trip.conditions === 'string' &&
+    (trip.hoursFished === undefined || (typeof trip.hoursFished === 'number' && Number.isFinite(trip.hoursFished) && trip.hoursFished >= 0.25 && trip.hoursFished <= 24)) &&
     (trip.airTemperature === undefined || typeof trip.airTemperature === 'string') &&
     (trip.waterTemperature === undefined || typeof trip.waterTemperature === 'string') &&
     (trip.windSpeed === undefined || typeof trip.windSpeed === 'string') &&

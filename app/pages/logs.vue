@@ -191,6 +191,7 @@ async function exportPdf() {
         trip.spotWater && `Water / place: ${trip.spotWater}`,
         trip.spotKind && `Spot type: ${trip.spotKind}`,
         trip.spotNotes && `Spot notes: ${trip.spotNotes}`,
+        trip.hoursFished && `Time fished: ${trip.hoursFished} hours`,
         trip.conditions && `Conditions: ${trip.conditions}`,
         trip.airTemperature && `Air temperature: ${trip.airTemperature} °C`,
         trip.waterTemperature && `Water temperature: ${trip.waterTemperature} °C`,
@@ -295,7 +296,7 @@ async function exportPdf() {
 
 const csvColumns = [
   'record_type', 'id', 'trip_id', 'date', 'location', 'conditions', 'air_temperature_c', 'water_temperature_c',
-  'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'species', 'quantity', 'catch_time', 'length', 'fish_weight',
+  'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'time_fished_hours', 'species', 'quantity', 'catch_time', 'length', 'fish_weight',
   'released', 'catch_photo', 'lure', 'lure_id', 'lure_notes', 'rod', 'hook', 'line', 'trip_weight', 'water_depth',
   'trip_notes', 'trip_photos', 'gear_type', 'name', 'brand', 'type', 'color', 'size', 'power', 'action', 'latitude',
   'longitude', 'water', 'kind', 'notes', 'spot_water', 'spot_type', 'spot_notes', 'combo_lures', 'hidden_lure_key'
@@ -320,6 +321,7 @@ function exportCsv() {
       wind_direction: trip.windDirection,
       cloud_cover: trip.cloudCover,
       precipitation: trip.precipitation,
+      time_fished_hours: trip.hoursFished,
       rod: trip.rod,
       reel: trip.reel,
       hook: trip.hook,
@@ -610,7 +612,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         <div class="entry-header">
           <div class="entry-heading">
             <div class="trip-date-box"><strong>{{ dateParts(trip.date).day }}</strong><span>{{ dateParts(trip.date).month }}</span></div>
-            <div><h2>{{ trip.location }}</h2><p>{{ dateParts(trip.date).full }} <span v-if="formatTripConditions(trip)"> · {{ formatTripConditions(trip) }}</span></p></div>
+            <div><h2>{{ trip.location }}</h2><p>{{ dateParts(trip.date).full }} <span v-if="trip.hoursFished"> · {{ trip.hoursFished }}h fishing</span><span v-if="formatTripConditions(trip)"> · {{ formatTripConditions(trip) }}</span></p></div>
           </div>
           <div class="entry-actions">
             <span class="entry-weather">{{ catchSummary(trip) }}</span>
