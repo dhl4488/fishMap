@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import type { FishingSpot } from '../composables/useFishingData'
+import type { FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { Geolocation } from '@capacitor/geolocation'
+import { formatTripConditions } from '../utils/tripConditions'
 
 useHead({ title: 'Fishing spots · Tidelog', meta: [{ name: 'description', content: 'Map, save, and revisit your favorite fishing spots.' }] })
 
 const { data, addSpot, deleteSpot, loading: dataLoading, error: dataError } = useFishingData()
 const { successFeedback } = useNativeFeatures()
 const selectedSpotId = ref('')
+const waterFilter = ref('')
+const kindFilter = ref('')
+const showTripMarkers = ref(false)
+const selectedTripId = ref('')
 const spotModalOpen = ref(false)
 const pickMode = ref(false)
 const pickedLocation = ref<{ latitude: number; longitude: number } | null>(null)
@@ -23,11 +28,46 @@ const locating = ref(false)
 const deletingSpotId = ref<string | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-const selectedSpot = computed(() => data.value.spots.find(spot => spot.id === selectedSpotId.value) ?? data.value.spots[0])
+const waterBodies = computed(() => {
+  const options = new Map<string, string>()
+  for (const spot of data.value.spots) {
+    const water = spot.water.trim()
+    const key = water.toLocaleLowerCase()
+    if (key && !options.has(key)) options.set(key, water)
+  }
+  return [...options].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label))
+})
+const spotKinds = computed(() => [...new Set(data.value.spots.map(spot => spot.kind.trim()).filter(Boolean))]
+  .sort((a, b) => a.localeCompare(b)))
+const filteredSpots = computed(() => data.value.spots.filter(spot =>
+  (!waterFilter.value || spot.water.trim().toLocaleLowerCase() === waterFilter.value) &&
+  (!kindFilter.value || spot.kind.trim() === kindFilter.value)
+))
+const selectedSpot = computed(() => filteredSpots.value.find(spot => spot.id === selectedSpotId.value) ?? filteredSpots.value[0])
+const mappableTrips = computed(() => showTripMarkers.value
+  ? data.value.trips.filter(trip => trip.latitude !== undefined && trip.longitude !== undefined)
+  : [])
+const selectedTrip = computed(() => mappableTrips.value.find(trip => trip.id === selectedTripId.value))
 watch(() => data.value.spots, (spots) => {
   const firstSpot = spots[0]
   if (!selectedSpotId.value && firstSpot) selectedSpotId.value = firstSpot.id
 }, { immediate: true })
+watch(mappableTrips, (trips) => {
+  if (!trips.some(trip => trip.id === selectedTripId.value)) selectedTripId.value = ''
+})
+
+function selectTrip(tripId: string) {
+  selectedTripId.value = tripId
+}
+
+function tripCatchSummary(trip: FishingTrip) {
+  return trip.catches.map(item => `${item.species} (${item.quantity})`).join(', ') || 'No catches recorded'
+}
+
+function tripDateLabel(date: string) {
+  return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
+    .format(new Date(`${date}T12:00:00`))
+}
 
 const mapLink = computed(() => {
   const latitude = selectedSpot.value?.latitude ?? 44.608
@@ -162,20 +202,57 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       <span>Your location is only accessed when you tap this button.</span>
     </div>
 
+    <section class="map-filters panel" aria-label="Map filters">
+      <label>
+        Waterbody
+        <select v-model="waterFilter">
+          <option value="">All waterbodies</option>
+          <option v-for="water in waterBodies" :key="water.key" :value="water.key">{{ water.label }}</option>
+        </select>
+      </label>
+      <label>
+        Spot type
+        <select v-model="kindFilter">
+          <option value="">All types</option>
+          <option v-for="kind in spotKinds" :key="kind" :value="kind">{{ kind }}</option>
+        </select>
+      </label>
+      <label class="trip-marker-toggle">
+        <input v-model="showTripMarkers" type="checkbox">
+        <span>Show logged trips on map</span>
+      </label>
+      <span v-if="showTripMarkers" class="trip-marker-legend"><i aria-hidden="true" />Past trips</span>
+      <span class="map-filter-count">{{ filteredSpots.length }} of {{ data.spots.length }} spots shown<span v-if="showTripMarkers"> · {{ mappableTrips.length }} trips mapped</span></span>
+    </section>
+
     <div class="map-layout">
       <section class="map-panel" aria-label="Map of selected fishing spot">
         <FishingMap
-          :spots="data.spots"
+          :spots="filteredSpots"
+          :trips="mappableTrips"
           :selected-spot-id="selectedSpot?.id"
           :pick-mode="pickMode"
           :picked-location="pickedLocation"
           @select="selectedSpotId = $event"
+          :selected-trip-id="selectedTripId"
+          @select-trip="selectTrip"
           @pick="handleMapPick"
         />
         <div v-if="pickMode" class="map-pick-prompt" role="status">Click the map to place your fishing spot</div>
       </section>
 
       <aside class="map-side">
+        <article v-if="selectedTrip" class="panel selected-trip-summary">
+          <div class="section-heading">
+            <h2>Trip details</h2>
+            <button class="text-button" type="button" @click="selectedTripId = ''">Clear</button>
+          </div>
+          <strong>{{ selectedTrip.location }}</strong>
+          <span class="selected-trip-date">{{ tripDateLabel(selectedTrip.date) }}</span>
+          <p><b>Catches:</b> {{ tripCatchSummary(selectedTrip) }}</p>
+          <p><b>Conditions:</b> {{ formatTripConditions(selectedTrip) || 'Not recorded' }}</p>
+          <p><b>Gear:</b> {{ [selectedTrip.rod, selectedTrip.reel, ...(selectedTrip.lures?.map(lure => lure.name) ?? [])].filter(Boolean).join(', ') || 'Not recorded' }}</p>
+        </article>
         <article v-if="selectedSpot" class="panel spot-summary">
           <div class="spot-summary-head">
             <div><p class="eyebrow">SAVED PLACE</p><h2>{{ selectedSpot.name }}</h2><p class="spot-kind">{{ selectedSpot.water }} · {{ selectedSpot.kind }}</p></div>
@@ -186,17 +263,17 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
           <p v-if="selectedSpot.notes" class="spot-notes">{{ selectedSpot.notes }}</p>
         </article>
         <article v-else class="panel empty-state" style="padding:27px 15px">
-          <span>⌖</span><strong>No favorite spots yet</strong><span>Save a spot to see it on your map.</span>
-          <button class="text-button" @click="startSpotPlacement">Choose a place on the map →</button>
+          <span>⌖</span><strong>{{ data.spots.length ? 'No spots match these filters' : 'No favorite spots yet' }}</strong><span>{{ data.spots.length ? 'Adjust the waterbody or spot type filters.' : 'Save a spot to see it on your map.' }}</span>
+          <button v-if="!data.spots.length" class="text-button" @click="startSpotPlacement">Choose a place on the map →</button>
         </article>
 
         <section class="panel spot-browser">
           <div class="section-heading">
             <h2>Your saved spots</h2>
-            <span class="spot-count" :aria-label="`${data.spots.length} saved spots`">{{ data.spots.length }}</span>
+            <span class="spot-count" :aria-label="`${filteredSpots.length} of ${data.spots.length} saved spots shown`">{{ filteredSpots.length }} / {{ data.spots.length }}</span>
           </div>
           <p v-if="spotActionError" class="auth-message auth-error" role="alert">{{ spotActionError }}</p>
-          <div v-for="spot in data.spots" :key="spot.id" class="spot-select-row">
+          <div v-for="spot in filteredSpots" :key="spot.id" class="spot-select-row">
             <button
               class="spot-select"
               :class="{ 'spot-select-active': selectedSpot?.id === spot.id }"
@@ -215,7 +292,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
               @click="removeSpot(spot)"
             >{{ deletingSpotId === spot.id ? '…' : '×' }}</button>
           </div>
-          <div v-if="!data.spots.length" class="empty-state" style="padding:16px 4px;font-size:12px">Your saved places will show up here.</div>
+          <div v-if="!filteredSpots.length" class="empty-state" style="padding:16px 4px;font-size:12px">{{ data.spots.length ? 'No spots match these filters.' : 'Your saved places will show up here.' }}</div>
           <div v-if="dataLoading" class="empty-state" style="padding:16px 4px;font-size:12px">Loading your saved spots…</div>
           <button class="text-button" style="margin-top:8px" @click="startSpotPlacement">＋ Add another spot</button>
         </section>
@@ -258,6 +335,21 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 .location-action { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin: -9px 0 15px; }
 .location-action > span { color: #89958e; font-size: 12px; }
 .location-action .secondary-button { min-height: 38px; }
+.map-filters { align-items: end; display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 15px; padding: 13px 15px; }
+.map-filters > label:not(.trip-marker-toggle) { color: #58675e; display: grid; flex: 1 1 170px; font-size: 12px; font-weight: 600; gap: 5px; }
+.map-filters select { background: white; border: 1px solid #e3e8e2; border-radius: 7px; color: #536158; font-size: 12px; min-height: 38px; padding: 8px 10px; }
+.trip-marker-toggle { align-items: center; color: #536158; display: flex; font-size: 12px; gap: 7px; min-height: 38px; }
+.trip-marker-toggle input { accent-color: #316b53; height: 16px; width: 16px; }
+.trip-marker-legend { align-items: center; color: #718078; display: inline-flex; font-size: 12px; gap: 6px; min-height: 38px; }
+.trip-marker-legend i { background: #8066a8; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 1px #8066a8; height: 11px; width: 11px; }
+.map-filter-count { color: #89958e; font-size: 12px; margin-left: auto; min-height: 38px; display: flex; align-items: center; }
+.selected-trip-summary { display: grid; gap: 7px; padding: 14px; }
+.selected-trip-summary .section-heading { margin: 0; }
+.selected-trip-summary .section-heading h2 { font-size: 13px; }
+.selected-trip-summary > strong { color: #425148; font-size: 13px; overflow-wrap: anywhere; }
+.selected-trip-date { color: #89958e; font-size: 11px; }
+.selected-trip-summary p { color: #718078; font-size: 12px; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.selected-trip-summary p b { color: #536158; }
 .spot-select-row { align-items: center; display: flex; gap: 4px; }
 .spot-select-row .spot-select { min-width: 0; }
 .spot-delete-button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 7px; color: #985b45; display: flex; flex: 0 0 34px; font-size: 17px; height: 34px; justify-content: center; }

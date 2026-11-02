@@ -2,6 +2,7 @@
 // The trip shape is shared with the data composable and the trip-entry dialog.
 import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { formatTripConditions } from '../utils/tripConditions'
+import { formatCatchTime, getFishingInsights, getHourlyCatchTotals, getSeasonalCatchTrends } from '../utils/fishingInsights'
 
 // Set browser metadata for the dashboard route.
 useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
@@ -24,6 +25,41 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 // Derive dashboard figures from the shared data so they update after a successful save.
 const trips = computed(() => [...data.value.trips].sort((a, b) => b.date.localeCompare(a.date)))
+const insights = computed(() => getFishingInsights(data.value.trips))
+const hourlyCatchTotals = computed(() => getHourlyCatchTotals(data.value.trips))
+const timedCatchCount = computed(() => hourlyCatchTotals.value.reduce((sum, item) => sum + item.quantity, 0))
+const peakCatchHour = computed(() => hourlyCatchTotals.value.reduce(
+  (peak, hour) => hour.quantity > peak.quantity ? hour : peak,
+  { hour: 0, quantity: 0 }
+))
+const insightYears = computed(() => [...new Set(data.value.trips.map(trip => trip.date.slice(0, 4)))]
+  .filter(year => /^\d{4}$/.test(year)).sort((a, b) => b.localeCompare(a)))
+const seasonalYear = ref('')
+watch(insightYears, (years) => {
+  if (!years.includes(seasonalYear.value)) seasonalYear.value = years[0] ?? ''
+}, { immediate: true })
+const seasonalTrends = computed(() => getSeasonalCatchTrends(data.value.trips, seasonalYear.value))
+const comparisonTripAId = ref('')
+const comparisonTripBId = ref('')
+watch(() => trips.value.map(trip => trip.id), (ids) => {
+  if (!ids.includes(comparisonTripAId.value)) comparisonTripAId.value = ids[0] ?? ''
+  if (!ids.includes(comparisonTripBId.value) || comparisonTripBId.value === comparisonTripAId.value) {
+    comparisonTripBId.value = ids.find(id => id !== comparisonTripAId.value) ?? ''
+  }
+}, { immediate: true })
+const comparisonTrips = computed(() => [
+  trips.value.find(trip => trip.id === comparisonTripAId.value),
+  trips.value.find(trip => trip.id === comparisonTripBId.value)
+] as const)
+const comparisonSpecies = computed(() => {
+  const species = new Set(comparisonTrips.value.flatMap(trip => trip?.catches.map(item => item.species) ?? []))
+  return [...species].map(name => ({
+    name,
+    counts: comparisonTrips.value.map(trip =>
+      trip?.catches.filter(item => item.species === name).reduce((total, item) => total + item.quantity, 0) ?? 0
+    )
+  })).sort((a, b) => (b.counts[0] + b.counts[1]) - (a.counts[0] + a.counts[1]) || a.name.localeCompare(b.name))
+})
 const previousLures = computed(() => {
   const lures = new Map<string, FishingLure>()
   for (const trip of data.value.trips) {
@@ -49,6 +85,36 @@ function catchSummary(trip: FishingTrip) {
   const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
   if (count === 0) return 'Skunked'
   return `${count} ${count === 1 ? 'catch' : 'catches'}`
+}
+
+function comparisonDate(value: string) {
+  return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
+    .format(new Date(`${value}T12:00:00`))
+}
+
+function formatPersonalBest(value: number, unit: 'cm' | 'kg') {
+  return `${new Intl.NumberFormat('en-CA', { maximumFractionDigits: 1 }).format(value)} ${unit}`
+}
+
+function speciesBarWidth(quantity: number) {
+  const maximum = insights.value.topSpecies[0]?.quantity ?? 1
+  return `${Math.max(6, quantity / maximum * 100)}%`
+}
+
+function monthBarHeight(quantity: number) {
+  const maximum = Math.max(1, ...seasonalTrends.value.months.map(month => month.quantity))
+  return `${quantity === 0 ? 0 : Math.max(8, quantity / maximum * 100)}%`
+}
+
+function hourlyBarHeight(quantity: number) {
+  const maximum = Math.max(1, ...hourlyCatchTotals.value.map(item => item.quantity))
+  return `${quantity === 0 ? 0 : Math.max(8, quantity / maximum * 100)}%`
+}
+
+function tripTopSpecies(trip: FishingTrip) {
+  const totals = new Map<string, number>()
+  for (const item of trip.catches) totals.set(item.species, (totals.get(item.species) ?? 0) + item.quantity)
+  return [...totals].sort((a, b) => b[1] - a[1])[0]
 }
 
 // Opens a clean new-trip dialog; takes no input and clears prior save feedback.
@@ -167,6 +233,144 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
         <div class="stat-top"><span>Last cast</span><span class="stat-icon" aria-hidden="true">↗</span></div>
         <div class="stat-value"><strong>{{ lastTripDate ? dateParts(lastTripDate).day : '—' }}</strong><span>{{ lastTripDate ? `${dateParts(lastTripDate).month} was a good one` : 'log your first trip' }}</span></div>
       </article>
+    </section>
+
+    <section class="insights-section" aria-label="Fishing insights">
+      <div class="section-heading"><h2>Your fishing stats</h2><NuxtLink to="/logs">Explore your diary <span aria-hidden="true">→</span></NuxtLink></div>
+      <div class="insights-grid">
+        <article class="panel insight-card">
+          <span class="insight-label">Species caught</span>
+          <strong class="insight-number">{{ insights.speciesCount }}</strong>
+          <span class="insight-caption">{{ insights.averageCatchesPerTrip.toFixed(1) }} fish per trip on average</span>
+        </article>
+        <article class="panel insight-card">
+          <span class="insight-label">Personal best length</span>
+          <strong class="insight-number">{{ insights.longestFish ? formatPersonalBest(insights.longestFish.value, 'cm') : '—' }}</strong>
+          <span class="insight-caption" v-if="insights.longestFish">{{ insights.longestFish.species }} · {{ insights.longestFish.location }}</span>
+          <span class="insight-caption" v-else>Add fish lengths to find your best.</span>
+        </article>
+        <article class="panel insight-card">
+          <span class="insight-label">Personal best weight</span>
+          <strong class="insight-number">{{ insights.heaviestFish ? formatPersonalBest(insights.heaviestFish.value, 'kg') : '—' }}</strong>
+          <span class="insight-caption" v-if="insights.heaviestFish">{{ insights.heaviestFish.species }} · {{ insights.heaviestFish.location }}</span>
+          <span class="insight-caption" v-else>Add fish weights to find your best.</span>
+        </article>
+        <article class="panel insight-card">
+          <span class="insight-label">Best trip</span>
+          <strong class="insight-number">{{ insights.bestTrip?.quantity ?? '—' }}<span v-if="insights.bestTrip"> fish</span></strong>
+          <span class="insight-caption" v-if="insights.bestTrip">{{ insights.bestTrip.trip.location }} · {{ comparisonDate(insights.bestTrip.trip.date) }}</span>
+          <span class="insight-caption" v-else>Log a catch to set a best trip.</span>
+        </article>
+      </div>
+      <div class="species-leaderboard panel" v-if="insights.topSpecies.length">
+        <div class="section-heading"><h3>Most caught species</h3><span>{{ insights.totalCatches }} fish total</span></div>
+        <div v-for="item in insights.topSpecies" :key="item.species" class="species-stat-row">
+          <strong>{{ item.species }}</strong>
+          <span class="species-stat-track"><span :style="{ width: speciesBarWidth(item.quantity) }" /></span>
+          <span class="species-stat-count">{{ item.quantity }}</span>
+        </div>
+      </div>
+      <div class="catch-time-insights panel">
+        <div class="section-heading catch-time-heading">
+          <div><h3>Catch times</h3><span>{{ timedCatchCount }} fish with an approximate time</span></div>
+          <strong v-if="timedCatchCount">
+            Most recorded: {{ formatCatchTime(`${String(peakCatchHour.hour).padStart(2, '0')}:00`) }}
+          </strong>
+        </div>
+        <div v-if="timedCatchCount" class="catch-time-chart-scroll" role="img" aria-label="Fish catches grouped by hour of day">
+          <div class="catch-time-chart">
+            <div
+              v-for="hour in hourlyCatchTotals"
+              :key="hour.hour"
+              class="catch-time-column"
+              :title="`${formatCatchTime(`${String(hour.hour).padStart(2, '0')}:00`)}: ${hour.quantity} fish`"
+            >
+              <span class="catch-time-count">{{ hour.quantity || '' }}</span>
+              <span class="catch-time-track"><span :style="{ height: hourlyBarHeight(hour.quantity) }" /></span>
+              <span class="catch-time-label">{{ hour.hour % 12 || 12 }}{{ hour.hour < 12 ? 'a' : 'p' }}</span>
+            </div>
+          </div>
+        </div>
+        <p v-else class="catch-time-empty">Add an approximate time to catches to see when you fish most successfully.</p>
+      </div>
+    </section>
+
+    <section class="trip-comparison panel" aria-label="Compare fishing trips">
+      <div class="comparison-heading">
+        <div><p class="eyebrow">LEARN FROM YOUR LOGS</p><h2>Compare trips</h2><p>See how catches, conditions, and gear differed between days.</p></div>
+        <NuxtLink to="/logs">View diary <span aria-hidden="true">→</span></NuxtLink>
+      </div>
+      <p v-if="trips.length < 2" class="comparison-empty">Log at least two trips to compare them here.</p>
+      <template v-else>
+        <div class="comparison-selectors">
+          <label>First trip
+            <select v-model="comparisonTripAId">
+              <option v-for="trip in trips" :key="trip.id" :value="trip.id">{{ comparisonDate(trip.date) }} · {{ trip.location }}</option>
+            </select>
+          </label>
+          <span aria-hidden="true">vs.</span>
+          <label>Second trip
+            <select v-model="comparisonTripBId">
+              <option v-for="trip in trips" :key="trip.id" :value="trip.id">{{ comparisonDate(trip.date) }} · {{ trip.location }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="comparisonTripAId === comparisonTripBId" class="comparison-empty">Choose two different trips to compare.</p>
+        <div v-else-if="comparisonTrips[0] && comparisonTrips[1]" class="comparison-columns">
+          <article v-for="(trip, index) in comparisonTrips" :key="trip.id" class="comparison-trip">
+            <h3>{{ trip.location }}</h3>
+            <span class="comparison-date">{{ comparisonDate(trip.date) }}</span>
+            <div class="comparison-total"><strong>{{ trip.catches.reduce((total, item) => total + item.quantity, 0) }}</strong><span>fish caught</span></div>
+            <p><strong>Top species:</strong> {{ tripTopSpecies(trip)?.[0] ?? 'None recorded' }}<span v-if="tripTopSpecies(trip)"> ({{ tripTopSpecies(trip)?.[1] }})</span></p>
+            <p><strong>Conditions:</strong> {{ formatTripConditions(trip) || trip.conditions || 'Not recorded' }}</p>
+            <p><strong>Gear:</strong> {{ [trip.rod, trip.reel, ...(trip.lures?.map(lure => lure.name) ?? [])].filter(Boolean).join(', ') || 'Not recorded' }}</p>
+          </article>
+        </div>
+        <div v-if="comparisonSpecies.length && comparisonTripAId !== comparisonTripBId" class="comparison-species">
+          <h3>Species by trip</h3>
+          <div class="comparison-species-header">
+            <span />
+            <div class="comparison-trip-column">
+              <strong>{{ comparisonTrips[0]?.location }}</strong>
+              <span>{{ comparisonDate(comparisonTrips[0]!.date) }}</span>
+            </div>
+            <div class="comparison-trip-column">
+              <strong>{{ comparisonTrips[1]?.location }}</strong>
+              <span>{{ comparisonDate(comparisonTrips[1]!.date) }}</span>
+            </div>
+          </div>
+          <div v-for="species in comparisonSpecies" :key="species.name" class="comparison-species-row">
+            <span>{{ species.name }}</span><strong>{{ species.counts[0] }}</strong><strong>{{ species.counts[1] }}</strong>
+          </div>
+        </div>
+      </template>
+    </section>
+
+    <section class="seasonal-insights panel" aria-label="Seasonal fishing trends">
+      <div class="seasonal-heading">
+        <div><p class="eyebrow">YOUR YEAR ON THE WATER</p><h2>Seasonal trends</h2></div>
+        <label v-if="insightYears.length" class="seasonal-year-select">Year
+          <select v-model="seasonalYear" aria-label="Year for seasonal trends">
+            <option v-for="year in insightYears" :key="year" :value="year">{{ year }}</option>
+          </select>
+        </label>
+      </div>
+      <p v-if="!insightYears.length" class="comparison-empty">Log a trip to start building your seasonal trends.</p>
+      <template v-else>
+        <div class="monthly-trend-chart" role="img" :aria-label="`Monthly catches in ${seasonalYear}`">
+          <div v-for="month in seasonalTrends.months" :key="month.month" class="monthly-trend-column">
+            <span class="monthly-trend-count">{{ month.quantity || '' }}</span>
+            <span class="monthly-trend-track"><span :style="{ height: monthBarHeight(month.quantity) }" /></span>
+            <span class="monthly-trend-label">{{ month.month }}</span>
+          </div>
+        </div>
+        <div class="season-trend-grid">
+          <article v-for="season in seasonalTrends.seasons" :key="season.season" class="season-trend-card">
+            <div><strong>{{ season.season }}</strong><span>{{ season.quantity }} fish</span></div>
+            <p>{{ season.topSpecies.length ? `Top: ${season.topSpecies.map(item => `${item.species} (${item.quantity})`).join(', ')}` : 'No catches recorded' }}</p>
+          </article>
+        </div>
+      </template>
     </section>
 
     <!-- The lower dashboard pairs a short trip history with saved fishing locations. -->

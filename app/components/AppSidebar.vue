@@ -14,6 +14,7 @@ const navigation = [
   { label: 'My diary', to: '/logs', icon: '▤' },
   { label: 'Tacklebox', to: '/tacklebox', icon: '▣' },
   { label: 'Fishing spots', to: '/maps', icon: '⌖' },
+  { label: 'Account', to: '/account', icon: '⚙' },
   { label: 'About', to: '/about', icon: 'ℹ' },
 ]
 </script>

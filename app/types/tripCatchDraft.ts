@@ -2,6 +2,7 @@ export interface CatchDraft {
   id: number
   species: string
   quantity: number
+  time: string
   lureId: number | ''
   individualDetails: boolean
   length: string

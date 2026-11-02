@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import type * as Leaflet from 'leaflet'
-import type { FishingSpot } from '../composables/useFishingData'
+import type { FishingSpot, FishingTrip } from '../composables/useFishingData'
 
 const props = defineProps<{
   spots: FishingSpot[]
+  trips?: FishingTrip[]
   selectedSpotId?: string
+  selectedTripId?: string
   pickMode?: boolean
   pickedLocation?: { latitude: number; longitude: number } | null
 }>()
 
 const emit = defineEmits<{
   select: [spotId: string]
+  selectTrip: [tripId: string]
   pick: [coordinates: { latitude: number; longitude: number }]
 }>()
 
@@ -22,6 +25,7 @@ const searching = ref(false)
 let map: Leaflet.Map | null = null
 let leaflet: typeof Leaflet | null = null
 const spotMarkers = new Map<string, Leaflet.Marker>()
+const tripMarkers = new Map<string, Leaflet.CircleMarker>()
 let pickedMarker: Leaflet.Marker | null = null
 let searchController: AbortController | null = null
 
@@ -64,6 +68,31 @@ function renderSpots() {
   }
 }
 
+// Recreates optional historical trip markers from trips that have saved coordinates.
+function renderTrips() {
+  if (!map || !leaflet) return
+
+  for (const marker of tripMarkers.values()) marker.remove()
+  tripMarkers.clear()
+
+  for (const trip of props.trips ?? []) {
+    if (trip.latitude === undefined || trip.longitude === undefined) continue
+    const catchCount = trip.catches.reduce((total, item) => total + item.quantity, 0)
+    const marker = leaflet.circleMarker([trip.latitude, trip.longitude], {
+      radius: trip.id === props.selectedTripId ? 9 : 7,
+      color: trip.id === props.selectedTripId ? '#49386b' : '#fff',
+      weight: trip.id === props.selectedTripId ? 3 : 2,
+      fillColor: '#8066a8',
+      fillOpacity: 0.95,
+      bubblingMouseEvents: false
+    })
+      .addTo(map)
+      .bindTooltip(`${trip.location} · ${trip.date} · ${catchCount} caught`)
+      .on('click', () => emit('selectTrip', trip.id))
+    tripMarkers.set(trip.id, marker)
+  }
+}
+
 // Adds, moves, or removes the in-progress location marker; takes no input and synchronizes it with the picked location.
 function renderPickedLocation() {
   if (!map || !props.pickedLocation) {
@@ -78,6 +107,18 @@ function renderPickedLocation() {
   } else if (leaflet) {
     pickedMarker = leaflet.marker(position, { icon: markerIcon(true), keyboard: false }).addTo(map)
   }
+}
+
+// Resizes the map before centering on a selected spot, including maps inside dialogs.
+function focusSelectedSpot(spotId = props.selectedSpotId) {
+  const spot = props.spots.find(item => item.id === spotId)
+  if (!map || !spot) return
+
+  requestAnimationFrame(() => {
+    if (!map) return
+    map.invalidateSize({ pan: false })
+    map.flyTo([spot.latitude, spot.longitude], Math.max(map.getZoom(), 11), { duration: 0.5 })
+  })
 }
 
 // Searches OpenStreetMap for the entered address; takes no input and updates results or search error state.
@@ -159,15 +200,18 @@ onMounted(async () => {
   })
 
   renderSpots()
+  renderTrips()
   renderPickedLocation()
+  focusSelectedSpot()
 })
 
 watch(() => props.spots, renderSpots, { deep: true })
+watch(() => props.trips, renderTrips, { deep: true })
 watch(() => props.selectedSpotId, (spotId) => {
   renderSpots()
-  const spot = props.spots.find(item => item.id === spotId)
-  if (map && spot) map.flyTo([spot.latitude, spot.longitude], Math.max(map.getZoom(), 11), { duration: 0.5 })
+  focusSelectedSpot(spotId)
 })
+watch(() => props.selectedTripId, renderTrips)
 watch(() => props.pickedLocation, renderPickedLocation, { deep: true })
 watch(() => props.pickMode, (pickMode) => {
   if (map) map.getContainer().classList.toggle('tidelog-map-pick-mode', Boolean(pickMode))

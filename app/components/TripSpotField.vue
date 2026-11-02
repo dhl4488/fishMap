@@ -14,8 +14,10 @@ const notes = defineModel<string>('notes', { default: '' })
 const query = ref('')
 const pickerOpen = ref(false)
 const picker = ref<HTMLElement | null>(null)
+const selectedSpotId = ref<string>()
 
 function pickLocation(value: { latitude: number; longitude: number }) {
+  selectedSpotId.value = undefined
   if (coordinates.value &&
     (coordinates.value.latitude !== value.latitude || coordinates.value.longitude !== value.longitude)) {
     location.value = ''
@@ -38,6 +40,7 @@ const filteredSpots = computed(() => {
 function selectSpot(spot: FishingSpot) {
   location.value = spot.name
   coordinates.value = { latitude: spot.latitude, longitude: spot.longitude }
+  selectedSpotId.value = spot.id
   water.value = spot.water
   kind.value = spot.kind
   notes.value = spot.notes
@@ -67,6 +70,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closePickerOnO
     <div class="trip-map-picker">
       <FishingMap
         :spots="spots"
+        :selected-spot-id="selectedSpotId"
         :pick-mode="true"
         :picked-location="coordinates"
         @pick="pickLocation"

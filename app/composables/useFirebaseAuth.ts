@@ -10,6 +10,8 @@ import {
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app'
 import { getFirestore, type Firestore } from 'firebase/firestore'
 import { getStorage, type FirebaseStorage } from 'firebase/storage'
+import { getFunctions, httpsCallable, type Functions } from 'firebase/functions'
+import { removeOfflineTripsForUser } from './useOfflineTripQueue'
 
 export interface TidelogUser {
   uid: string
@@ -22,6 +24,7 @@ interface FirebaseClient {
   auth: ReturnType<typeof getAuth>
   db: Firestore
   storage: FirebaseStorage
+  functions: Functions
 }
 
 interface FirebaseOptions {
@@ -46,7 +49,13 @@ function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
 
   const app = getApps().find(candidate => candidate.name === 'tidelog')
     ?? initializeApp(options, 'tidelog')
-  firebaseClient = { app, auth: getAuth(app), db: getFirestore(app), storage: getStorage(app) }
+  firebaseClient = {
+    app,
+    auth: getAuth(app),
+    db: getFirestore(app),
+    storage: getStorage(app),
+    functions: getFunctions(app, 'us-central1')
+  }
   return firebaseClient
 }
 
@@ -133,7 +142,35 @@ export function useFirebaseAuth() {
     user.value = null
   }
 
-  return { user, ready, isConfigured, initialize, createAccount, signIn, signOutUser }
+  async function deleteAccount(): Promise<void> {
+    const client = getFirebaseClient(firebaseOptions)
+    if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
+    const account = client.auth.currentUser
+    if (!account) throw new Error('Sign in before deleting your account.')
+
+    const removeAccount = httpsCallable<Record<string, never>, { deleted: boolean }>(
+      client.functions,
+      'deleteUserAccount'
+    )
+    await removeAccount({})
+
+    let localCleanupError: unknown
+    try {
+      await removeOfflineTripsForUser(account.uid)
+    } catch (error) {
+      localCleanupError = error
+      console.error('The online account was deleted, but pending local trips could not be cleared.', error)
+    } finally {
+      await signOut(client.auth)
+      user.value = null
+    }
+
+    if (localCleanupError) {
+      throw new Error('Your account and online data were deleted, but locally queued trip data could not be removed from this device.')
+    }
+  }
+
+  return { user, ready, isConfigured, initialize, createAccount, signIn, signOutUser, deleteAccount }
 }
 
 // Returns the configured Firestore client; takes no input and throws when Firebase is unavailable.
@@ -144,6 +181,11 @@ export function useFirebaseDatabase() {
 // Returns the configured Firebase Storage client; takes no input and throws when Firebase is unavailable.
 export function useFirebaseStorage() {
   return getFirebaseServices().storage
+}
+
+// Returns the configured Firebase Functions client; takes no input and throws when Firebase is unavailable.
+export function useFirebaseFunctions() {
+  return getFirebaseServices().functions
 }
 
 // Resolves all configured Firebase services; takes no input and returns clients or throws a configuration error.

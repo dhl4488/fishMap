@@ -111,6 +111,80 @@ h1,h2,h3,p { margin-top: 0; }
 .spot-card h3 { font-size: 12px; font-weight: 700; margin: 0 0 4px; }
 .spot-card p { color: #8a9690; font-size: 12px; margin: 0; }
 .spot-arrow { color: #a0aaa4; font-size: 18px; margin-left: auto; }
+.insights-section { margin: 0 0 25px; }
+.insights-section > .section-heading { margin-bottom: 12px; }
+.insights-grid { display: grid; gap: 11px; grid-template-columns: repeat(4,minmax(0,1fr)); }
+.insight-card { display: grid; gap: 6px; min-width: 0; padding: 14px 15px; }
+.insight-label,.insight-caption { color: #82908a; font-size: 12px; }
+.insight-number { color: #34483c; font: 700 22px Manrope,sans-serif; overflow-wrap: anywhere; }
+.insight-number span { font: 600 12px 'DM Sans',sans-serif; }
+.insight-caption { line-height: 1.4; overflow-wrap: anywhere; }
+.species-leaderboard { margin-top: 11px; padding: 14px 16px; }
+.species-leaderboard .section-heading { margin-bottom: 10px; }
+.species-leaderboard .section-heading h3,.comparison-species h3 { font: 700 13px Manrope,sans-serif; margin: 0; }
+.species-leaderboard .section-heading > span { color: #89958e; font-size: 12px; }
+.species-stat-row { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(100px,.7fr) minmax(80px,1.7fr) 32px; padding: 5px 0; }
+.species-stat-row > strong { color: #536158; font-size: 12px; }
+.species-stat-track { background: #edf2ec; border-radius: 99px; height: 8px; overflow: hidden; }
+.species-stat-track > span { background: #6d9475; border-radius: inherit; display: block; height: 100%; }
+.species-stat-count { color: #536158; font-size: 12px; font-weight: 700; text-align: right; }
+.catch-time-insights { margin-top: 11px; padding: 14px 16px; }
+.catch-time-heading { align-items: flex-start; margin-bottom: 12px; }
+.catch-time-heading h3 { font: 700 13px Manrope,sans-serif; margin: 0 0 3px; }
+.catch-time-heading span,.catch-time-heading > strong,.catch-time-empty { color: #89958e; font-size: 12px; }
+.catch-time-heading > strong { flex: 0 0 auto; }
+.catch-time-chart-scroll { max-width: 100%; overflow-x: auto; }
+.catch-time-chart { align-items: end; border-bottom: 1px solid #e8eee7; display: grid; gap: 5px; grid-template-columns: repeat(24,minmax(18px,1fr)); height: 130px; min-width: 500px; padding: 0 2px; }
+.catch-time-column { align-items: center; display: grid; grid-template-rows: 16px minmax(0,1fr) 17px; min-width: 0; }
+.catch-time-count,.catch-time-label { color: #89958e; font-size: 9px; line-height: 1; text-align: center; white-space: nowrap; }
+.catch-time-track { align-items: end; background: transparent; display: flex; height: 100%; justify-content: center; width: 100%; }
+.catch-time-track > span { background: #76977c; border-radius: 4px 4px 0 0; display: block; max-width: 15px; min-height: 0; width: 70%; }
+.catch-time-empty { margin: 0; }
+.trip-comparison { margin-bottom: 28px; padding: 19px; }
+.comparison-heading { align-items: flex-start; display: flex; gap: 16px; justify-content: space-between; }
+.comparison-heading .eyebrow { font-size: 11px; margin-bottom: 5px; }
+.comparison-heading h2 { color: #34483c; font: 700 17px Manrope,sans-serif; margin: 0 0 5px; }
+.comparison-heading p:not(.eyebrow) { color: #89958e; font-size: 12px; line-height: 1.45; margin: 0; }
+.comparison-heading > a { color: #63836d; flex: 0 0 auto; font-size: 12px; font-weight: 600; padding-top: 5px; }
+.comparison-selectors { align-items: end; display: grid; gap: 12px; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); margin: 16px 0; }
+.comparison-selectors label { color: #58675e; display: grid; font-size: 12px; font-weight: 600; gap: 5px; min-width: 0; }
+.comparison-selectors select { background: #fff; border: 1px solid #e3e8e2; border-radius: 7px; color: #536158; font-size: 12px; min-height: 38px; min-width: 0; padding: 8px; }
+.comparison-selectors > span { color: #89958e; font-size: 12px; padding-bottom: 11px; }
+.comparison-columns { display: grid; gap: 12px; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.comparison-trip { background: #f8faf7; border: 1px solid #edf1eb; border-radius: 9px; min-width: 0; padding: 13px; }
+.comparison-trip h3 { color: #34483c; font: 700 14px Manrope,sans-serif; margin: 0 0 3px; overflow-wrap: anywhere; }
+.comparison-date { color: #89958e; font-size: 12px; }
+.comparison-total { align-items: baseline; border-bottom: 1px solid #e8eee7; display: flex; gap: 6px; margin: 11px 0 8px; padding-bottom: 9px; }
+.comparison-total strong { color: #316b53; font: 700 21px Manrope,sans-serif; }
+.comparison-total span,.comparison-trip p { color: #718078; font-size: 12px; }
+.comparison-trip p { line-height: 1.45; margin: 7px 0 0; overflow-wrap: anywhere; }
+.comparison-trip p strong { color: #536158; }
+.comparison-species { border-top: 1px solid #edf0eb; margin-top: 14px; padding-top: 12px; }
+.comparison-species h3 { margin-bottom: 8px; }
+.comparison-species-header { color: #89958e; display: grid; font-size: 11px; gap: 9px; grid-template-columns: minmax(0,1fr) repeat(2,minmax(0,.75fr)); padding: 0 2px 5px; }
+.comparison-trip-column { display: grid; gap: 3px; min-width: 0; text-align: center; }
+.comparison-trip-column strong { color: #536158; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.comparison-trip-column span { font-size: 10px; }
+.comparison-species-row { align-items: center; border-bottom: 1px solid #f1f3f0; color: #536158; display: grid; font-size: 12px; gap: 9px; grid-template-columns: minmax(0,1fr) repeat(2,minmax(0,.75fr)); padding: 7px 2px; }
+.comparison-species-row > strong { font-variant-numeric: tabular-nums; text-align: center; }
+.comparison-empty { color: #89958e; font-size: 12px; margin: 14px 0 0; }
+.seasonal-insights { margin: 0 0 26px; padding: 18px; }
+.seasonal-heading { align-items: center; display: flex; justify-content: space-between; }
+.seasonal-heading .eyebrow { font-size: 11px; margin-bottom: 5px; }
+.seasonal-heading h2 { color: #34483c; font: 700 17px Manrope,sans-serif; margin: 0; }
+.seasonal-year-select { align-items: center; color: #58675e; display: flex; font-size: 12px; gap: 7px; }
+.seasonal-year-select select { background: white; border: 1px solid #e3e8e2; border-radius: 7px; color: #536158; font-size: 12px; min-height: 36px; padding: 7px 9px; }
+.monthly-trend-chart { align-items: end; border-bottom: 1px solid #e8eee7; display: grid; gap: 7px; grid-template-columns: repeat(12,minmax(0,1fr)); height: 160px; margin-top: 16px; padding: 0 3px; }
+.monthly-trend-column { align-items: center; display: grid; grid-template-rows: 15px 1fr 18px; height: 100%; justify-items: center; min-width: 0; }
+.monthly-trend-count,.monthly-trend-label { color: #89958e; font-size: 10px; }
+.monthly-trend-track { align-items: end; background: #f2f5f1; border-radius: 5px 5px 0 0; display: flex; height: 100%; justify-content: center; overflow: hidden; width: min(100%,28px); }
+.monthly-trend-track > span { background: #6d9475; border-radius: 4px 4px 0 0; min-height: 0; width: 100%; }
+.season-trend-grid { display: grid; gap: 9px; grid-template-columns: repeat(4,minmax(0,1fr)); margin-top: 13px; }
+.season-trend-card { background: #f8faf7; border: 1px solid #edf1eb; border-radius: 8px; min-width: 0; padding: 10px; }
+.season-trend-card > div { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: space-between; }
+.season-trend-card > div strong { color: #425148; font-size: 12px; }
+.season-trend-card > div span,.season-trend-card p { color: #89958e; font-size: 11px; }
+.season-trend-card p { line-height: 1.4; margin: 6px 0 0; overflow-wrap: anywhere; }
 .toolbar-row { align-items: center; display: flex; gap: 10px; margin: 0 0 16px; }
 .search-box { align-items: center; background: white; border: 1px solid #e7ebe6; border-radius: 8px; color: #89958e; display: flex; flex: 1; gap: 8px; max-width: 340px; padding: 0 11px; }
 .search-box input { background: transparent; border: 0; color: var(--ink); font-size: 12px; height: 36px; outline: 0; width: 100%; }
@@ -198,6 +272,8 @@ h1,h2,h3,p { margin-top: 0; }
   .topbar { height: 58px; margin-bottom: 27px; }
   .today-label { display: none; }
   .dashboard-grid,.map-layout { grid-template-columns: 1fr; }
+  .insights-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .season-trend-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .map-panel { min-height: 370px; height: 370px; }
   .map-side { grid-template-columns: 1fr 1fr; }
 }
@@ -212,6 +288,14 @@ h1,h2,h3,p { margin-top: 0; }
   .stat-card { min-height: 97px; padding: 12px; }
   .stat-value strong { font-size: 20px; }
   .dashboard-grid { gap: 25px; }
+  .trip-comparison { padding: 14px; }
+  .seasonal-insights { padding: 14px; }
+  .monthly-trend-chart { gap: 3px; }
+  .monthly-trend-count,.monthly-trend-label { font-size: 9px; }
+  .comparison-selectors { grid-template-columns: minmax(0,1fr); }
+  .comparison-selectors > span { display: none; }
+  .comparison-columns { grid-template-columns: minmax(0,1fr); }
+  .species-stat-row { grid-template-columns: minmax(90px,1fr) minmax(50px,1.5fr) 28px; }
   .map-side { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .form-field-full { grid-column: auto; }

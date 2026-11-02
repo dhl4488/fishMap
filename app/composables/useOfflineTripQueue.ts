@@ -75,3 +75,9 @@ export async function saveOfflineTrip(record: OfflineTripRecord): Promise<void> 
 export async function removeOfflineTrip(userId: string, tripId: string): Promise<void> {
   await runQueueTransaction<undefined>('readwrite', store => store.delete(`${userId}:${tripId}`))
 }
+
+// Removes one user's pending trips from this device; accepts the UID and resolves after cleanup.
+export async function removeOfflineTripsForUser(userId: string): Promise<void> {
+  const trips = await listOfflineTrips(userId)
+  await Promise.all(trips.map(trip => removeOfflineTrip(userId, trip.tripId)))
+}

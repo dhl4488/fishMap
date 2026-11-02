@@ -99,11 +99,15 @@ export function isWithinMeasurementRange(value: string, kind: MeasurementKind): 
   return amounts.every(amount => amount <= measurementLimits[kind].max)
 }
 
-export function normalizeMeasurementToMetric(value: string, kind: MeasurementKind): string {
+export function measurementValueInMetric(value: string, kind: MeasurementKind): number | null {
   const amounts = parseMeasurementAmounts(value, kind)
-  if (!amounts?.length) return value.trim()
-  const amount = Number(amounts[0].toFixed(1))
-  return `${amount} ${measurementLimits[kind].canonicalUnit}`
+  return amounts?.[0] ?? null
+}
+
+export function normalizeMeasurementToMetric(value: string, kind: MeasurementKind): string {
+  const amount = measurementValueInMetric(value, kind)
+  if (amount === null) return value.trim()
+  return `${Number(amount.toFixed(1))} ${measurementLimits[kind].canonicalUnit}`
 }
 
 export function isWithinNumericRange(value: string | number, min: number, max: number): boolean {

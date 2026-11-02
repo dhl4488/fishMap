@@ -67,6 +67,16 @@ const emit = defineEmits<{
           {{ lure.name }}{{ lure.notes ? ` — ${lure.notes}` : '' }}
         </option>
       </select>
+      <label class="catch-time-field">
+        <span>Approx. catch time <span>(optional)</span></span>
+        <input
+          v-model="catchItem.time"
+          type="time"
+          step="900"
+          :aria-label="`Approximate time for catch ${index + 1}`"
+        >
+        <small>For a quantity entry, this time applies to all fish in that row.</small>
+      </label>
       <div class="catch-detail-actions">
         <button
           class="text-button"
@@ -106,6 +116,7 @@ const emit = defineEmits<{
           <span>{{ catchItem.photoFile?.name ?? 'A fish photo is saved' }}</span>
           <button class="text-button" type="button" @click="removePhoto(catchItem, $event)">Remove photo</button>
         </div>
+        <p v-if="catchItem.photoFile || catchItem.photo" class="catch-photo-status-text">Photos are automatically resized before upload.</p>
       </div>
     </div>
   </div>
@@ -118,6 +129,10 @@ const emit = defineEmits<{
 .catch-form-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(0,1fr) 96px 40px; margin-top: 8px; }
 .catch-form-row select,.catch-form-row input { min-width: 0; }
 .catch-form-row .catch-setup-select { grid-column: 1/-1; }
+.catch-time-field { color: #69776e; display: grid; font-size: 12px; gap: 5px; grid-column: 1/-1; }
+.catch-time-field > span > span { font-weight: 400; }
+.catch-time-field input { max-width: 220px; width: 100%; }
+.catch-time-field small { color: #89958e; font-size: 11px; }
 .catch-form-row > input:disabled { background: #f4f6f2; color: #77847c; }
 .catch-detail-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0 10px; grid-column: 1/-1; }
 .individual-catch-details { background: #f8faf7; border: 1px solid #edf1eb; border-radius: 8px; grid-column: 1/-1; padding: 10px; }

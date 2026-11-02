@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { formatTripConditions } from '../utils/tripConditions'
+import { formatCatchTime } from '../utils/fishingInsights'
 
 useHead({ title: 'My diary · Tidelog', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
 
@@ -9,6 +10,7 @@ const {
   addTrip,
   updateTrip,
   deleteTrip,
+  removeTripPhoto,
   discardPendingTrip,
   addSpot,
   addCombo,
@@ -36,6 +38,8 @@ const exportError = ref('')
 const deletingTripId = ref<string | null>(null)
 const tripPendingDelete = ref<FishingTrip | null>(null)
 const deleteTripError = ref('')
+const photoManagementError = ref('')
+const deletingPhotoKey = ref<string | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
 const previousLures = computed(() => {
@@ -55,19 +59,53 @@ const previousLures = computed(() => {
 })
 
 const years = computed(() => [...new Set(data.value.trips.map(trip => trip.date.slice(0, 4)))].sort((a, b) => b.localeCompare(a)))
-const filteredTrips = computed(() => [...data.value.trips]
-  .filter((trip) => {
-    const lureSearchText = [
-      ...(trip.lures?.map(lure => `${lure.name} ${lure.notes}`) ?? []),
-      ...trip.catches.map(item => item.lure ?? '')
-    ].join(' ')
-    const gearSearchText = `${trip.rod ?? ''} ${trip.reel ?? ''} ${trip.hook ?? ''} ${trip.line ?? ''} ${trip.weight ?? ''}`
-    const catchSearchText = trip.catches
-      .map(item => `${item.species} ${item.lure ?? ''} ${item.length ?? ''} ${item.weight ?? ''} ${item.released === undefined ? '' : item.released ? 'released' : 'kept'}`)
-      .join(' ')
-    const searchText = `${trip.location} ${trip.spotWater ?? ''} ${trip.spotKind ?? ''} ${trip.spotNotes ?? ''} ${formatTripConditions(trip)} ${lureSearchText} ${gearSearchText} ${trip.waterDepth ?? ''} ${trip.notes} ${catchSearchText}`.toLowerCase()
-    return searchText.includes(query.value.toLowerCase()) && (yearFilter.value === 'all' || trip.date.startsWith(yearFilter.value))
+
+type SearchCategory = 'species' | 'lure' | 'gear' | 'spot' | 'notes' | 'conditions'
+
+function normalizeSearchText(value: string) {
+  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('en-CA')
+}
+
+function matchesTripSearch(trip: FishingTrip, rawQuery: string) {
+  const species = trip.catches.map(item => [
+    item.species,
+    item.time ? formatCatchTime(item.time) : '',
+    item.released === undefined ? '' : item.released ? 'released kept' : 'kept retained'
+  ].join(' ')).join(' ')
+  const lures = [
+    ...(trip.lures?.map(lure => `${lure.name} ${lure.notes}`) ?? []),
+    ...trip.catches.map(item => item.lure ?? '')
+  ].join(' ')
+  const gear = [
+    trip.rod, trip.reel, trip.hook, trip.line, trip.weight, trip.waterDepth
+  ].filter(Boolean).join(' ')
+  const spot = [trip.location, trip.spotWater, trip.spotKind, trip.spotNotes].filter(Boolean).join(' ')
+  const conditions = [
+    formatTripConditions(trip), trip.airTemperature, trip.waterTemperature,
+    trip.windSpeed, trip.windDirection, trip.cloudCover, trip.precipitation
+  ].filter(Boolean).join(' ')
+  const fields: Record<SearchCategory | 'all', string> = {
+    all: `${trip.date} ${trip.location} ${trip.spotWater ?? ''} ${trip.spotKind ?? ''} ${trip.spotNotes ?? ''} ${conditions} ${lures} ${gear} ${trip.notes} ${species} ${trip.catches.map(item => `${item.length ?? ''} ${item.weight ?? ''}`).join(' ')}`,
+    species,
+    lure: lures,
+    gear,
+    spot,
+    notes: trip.notes,
+    conditions
+  }
+
+  return rawQuery.trim().split(/\s+/).filter(Boolean).every((token) => {
+    const scoped = token.match(/^(species|lure|gear|spot|notes|conditions):(.+)$/i)
+    const source = scoped
+      ? fields[scoped[1]!.toLocaleLowerCase('en-CA') as SearchCategory]
+      : fields.all
+    const term = scoped ? scoped[2]! : token
+    return normalizeSearchText(source).includes(normalizeSearchText(term))
   })
+}
+
+const filteredTrips = computed(() => [...data.value.trips]
+  .filter(trip => matchesTripSearch(trip, query.value) && (yearFilter.value === 'all' || trip.date.startsWith(yearFilter.value)))
   .sort((a, b) => b.date.localeCompare(a.date)))
 
 // Formats a trip's total catch count; accepts a trip and returns a count label or "Skunked".
@@ -75,6 +113,24 @@ function catchSummary(trip: FishingTrip) {
   const count = trip.catches.reduce((sum, item) => sum + item.quantity, 0)
   if (count === 0) return 'Skunked'
   return `${count} ${count === 1 ? 'catch' : 'catches'}`
+}
+
+async function removePhotoFromTrip(trip: FishingTrip, photoUrl: string) {
+  if (!isOnline.value || pendingTripIds.value.includes(trip.id) || deletingPhotoKey.value) return
+  if (!window.confirm(`Remove this photo from the trip at ${trip.location}? The photo will be permanently deleted.`)) return
+
+  deletingPhotoKey.value = `${trip.id}:${photoUrl}`
+  photoManagementError.value = ''
+  try {
+    await removeTripPhoto(trip.id, photoUrl)
+    toastMessage.value = 'Photo removed from your trip.'
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => { toastMessage.value = '' }, 2800)
+  } catch (error) {
+    photoManagementError.value = error instanceof Error ? error.message : 'Could not remove this photo.'
+  } finally {
+    deletingPhotoKey.value = null
+  }
 }
 
 // Triggers a browser download; accepts a filename, contents, and MIME type and releases the temporary URL.
@@ -153,6 +209,7 @@ async function exportPdf() {
       for (const item of trip.catches) {
         const details = [
           `${item.quantity} ${item.quantity === 1 ? 'fish' : 'fish'}`,
+          item.time && `Approx. time ${formatCatchTime(item.time)}`,
           item.length && `Length ${item.length}`,
           item.weight && `Weight ${item.weight}`,
           item.released !== undefined && (item.released ? 'Released' : 'Kept'),
@@ -238,7 +295,7 @@ async function exportPdf() {
 
 const csvColumns = [
   'record_type', 'id', 'trip_id', 'date', 'location', 'conditions', 'air_temperature_c', 'water_temperature_c',
-  'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'species', 'quantity', 'length', 'fish_weight',
+  'wind_speed_kmh', 'wind_direction', 'cloud_cover', 'precipitation', 'species', 'quantity', 'catch_time', 'length', 'fish_weight',
   'released', 'catch_photo', 'lure', 'lure_id', 'lure_notes', 'rod', 'hook', 'line', 'trip_weight', 'water_depth',
   'trip_notes', 'trip_photos', 'gear_type', 'name', 'brand', 'type', 'color', 'size', 'power', 'action', 'latitude',
   'longitude', 'water', 'kind', 'notes', 'spot_water', 'spot_type', 'spot_notes', 'combo_lures', 'hidden_lure_key'
@@ -280,6 +337,7 @@ function exportCsv() {
         ...tripFields,
         species: item.species,
         quantity: item.quantity,
+        catch_time: item.time,
         length: item.length,
         fish_weight: item.weight,
         released: item.released,
@@ -517,6 +575,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     <div v-if="dataError" class="auth-message auth-error" role="alert">{{ dataError }}</div>
     <div v-if="tripActionError" class="auth-message auth-error" role="alert">{{ tripActionError }}</div>
     <div v-if="exportError" class="auth-message auth-error" role="alert">{{ exportError }}</div>
+    <div v-if="photoManagementError" class="auth-message auth-error" role="alert">{{ photoManagementError }}</div>
     <div v-if="!isOnline || pendingTripIds.length || offlineSyncError" class="offline-banner" :class="{ 'offline-banner-error': offlineSyncError }" role="status">
       <span class="offline-indicator" aria-hidden="true" />
       <span v-if="!isOnline">Offline — new trips are saved on this device and will sync when you reconnect.</span>
@@ -534,7 +593,8 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
     <div class="toolbar-row">
       <label class="search-box">
         <span aria-hidden="true">⌕</span>
-        <input v-model="query" aria-label="Search trips" placeholder="Search trips, places, or catches">
+        <input v-model="query" aria-label="Search trips" placeholder="Search species, lures, gear, notes, or conditions">
+        <button v-if="query" class="search-clear-button" type="button" aria-label="Clear trip search" @click="query = ''">×</button>
       </label>
       <select v-model="yearFilter" class="filter-select" aria-label="Filter trips by year">
         <option value="all">All years</option>
@@ -542,6 +602,7 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
       </select>
       <span class="diary-count">{{ filteredTrips.length }} {{ filteredTrips.length === 1 ? 'entry' : 'entries' }}</span>
     </div>
+    <p class="search-help">Search terms are combined. Narrow results with <code>species:</code>, <code>lure:</code>, <code>gear:</code>, <code>spot:</code>, <code>notes:</code>, or <code>conditions:</code>.</p>
 
     <div v-if="dataLoading" class="panel empty-state empty-panel">Loading your diary…</div>
     <div v-else-if="filteredTrips.length" class="diary-list">
@@ -591,29 +652,32 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
             <div class="catch-model-details">
               <span class="catch-chip">{{ item.species }}</span>
               <span class="catch-quantity">{{ item.quantity }} caught</span>
+              <span v-if="item.time" class="catch-lure">Approx. time: {{ formatCatchTime(item.time) }}</span>
               <span v-if="item.lure" class="catch-lure">Caught on: {{ item.lure }}</span>
               <span v-if="item.length" class="catch-lure">Length: {{ item.length }}</span>
               <span v-if="item.weight" class="catch-lure">Weight: {{ item.weight }}</span>
               <span v-if="item.released !== undefined" class="catch-lure">{{ item.released ? 'Released' : 'Kept' }}</span>
-              <a v-if="item.photo" class="catch-photo-link" :href="item.photo" target="_blank" rel="noreferrer">
-                <img :src="item.photo" :alt="`${item.species} caught at ${trip.location}`" loading="lazy">
-                <span>View fish photo</span>
-              </a>
+              <div v-if="item.photo" class="catch-photo-actions">
+                <a class="catch-photo-link" :href="item.photo" target="_blank" rel="noreferrer">
+                  <img :src="item.photo" :alt="`${item.species} caught at ${trip.location}`" loading="lazy">
+                  <span>View fish photo</span>
+                </a>
+                <button class="photo-remove-button" type="button" :disabled="!isOnline || pendingTripIds.includes(trip.id) || deletingPhotoKey !== null" @click="removePhotoFromTrip(trip, item.photo)">
+                  {{ deletingPhotoKey === `${trip.id}:${item.photo}` ? 'Removing…' : 'Remove photo' }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
         <div v-if="trip.photos?.length" class="entry-photo-gallery" aria-label="Trip photos">
-          <a
-            v-for="(photo, index) in trip.photos"
-            :key="photo"
-            :href="photo"
-            target="_blank"
-            rel="noreferrer"
-            class="entry-photo"
-            :aria-label="`Open trip photo ${index + 1} in a new tab`"
-          >
-            <img :src="photo" :alt="`Photo ${index + 1} from ${trip.location}`" loading="lazy">
-          </a>
+          <div v-for="(photo, index) in trip.photos" :key="photo" class="entry-photo-card">
+            <a :href="photo" target="_blank" rel="noreferrer" class="entry-photo" :aria-label="`Open trip photo ${index + 1} in a new tab`">
+              <img :src="photo" :alt="`Photo ${index + 1} from ${trip.location}`" loading="lazy">
+            </a>
+            <button class="photo-remove-button" type="button" :disabled="!isOnline || pendingTripIds.includes(trip.id) || deletingPhotoKey !== null" @click="removePhotoFromTrip(trip, photo)">
+              {{ deletingPhotoKey === `${trip.id}:${photo}` ? 'Removing…' : 'Remove photo' }}
+            </button>
+          </div>
         </div>
         <p v-if="trip.notes" class="entry-notes">{{ trip.notes }}</p>
       </article>
@@ -700,6 +764,11 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 .delete-confirm-button { background: #a3543d; border: 1px solid #a3543d; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 600; padding: 9px 14px; }
 .delete-confirm-button:hover:not(:disabled) { background: #8d4633; border-color: #8d4633; }
 .diary-count { align-items: center; background: #eaf2ec; border: 1px solid #d9e7da; border-radius: 999px; color: #315f48; display: inline-flex; font-size: 12px; font-weight: 700; justify-content: center; margin-left: auto; min-height: 32px; padding: 0 11px; white-space: nowrap; }
+.search-box { min-width: 0; }
+.search-box input { min-width: 0; }
+.search-clear-button { background: transparent; border: 0; color: #89958e; flex: 0 0 28px; font-size: 18px; height: 28px; padding: 0; }
+.search-help { color: #89958e; font-size: 11px; line-height: 1.45; margin: -8px 0 14px; }
+.search-help code { background: #f0f4ef; border-radius: 4px; color: #536158; padding: 2px 4px; }
 .offline-banner { align-items: center; background: #edf5ed; border: 1px solid #dbe8da; border-radius: 9px; color: #46694c; display: flex; flex-wrap: wrap; font-size: 12px; gap: 8px; line-height: 1.45; margin: 0 0 14px; padding: 10px 12px; }
 .offline-banner-error { background: #fbf0ec; border-color: #f1ded6; color: #985b45; }
 .offline-indicator { background: #6c9469; border-radius: 50%; flex: 0 0 8px; height: 8px; }
@@ -724,6 +793,12 @@ onBeforeUnmount(() => clearTimeout(toastTimer))
 .catch-lure { color: #718078; font-size: 12px; }
 .catch-photo-link { align-items: center; color: #477353; display: inline-flex; font-size: 12px; gap: 6px; margin-top: 3px; }
 .catch-photo-link img { border-radius: 5px; height: 34px; object-fit: cover; width: 44px; }
+.catch-photo-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.entry-photo-card { display: grid; gap: 4px; }
+.entry-photo { border-radius: 8px; height: 92px; overflow: hidden; width: 112px; }
+.photo-remove-button { background: transparent; border: 0; color: #985b45; cursor: pointer; font-size: 11px; padding: 2px 0; text-align: left; }
+.photo-remove-button:hover:not(:disabled) { color: #7d3d2c; text-decoration: underline; }
+.photo-remove-button:disabled { cursor: not-allowed; opacity: .55; }
 @media (max-width: 760px) {
   .heading-actions { justify-content: flex-start; }
   .toolbar-row { display: grid; gap: 8px; grid-template-columns: minmax(0,1fr) auto; }

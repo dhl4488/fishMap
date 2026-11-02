@@ -10,14 +10,18 @@ import {
   writeBatch,
   type Firestore
 } from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage'
+import { deleteObject, getMetadata, listAll, ref as storageRef } from 'firebase/storage'
+import { httpsCallable } from 'firebase/functions'
 import type { TidelogUser } from './useFirebaseAuth'
+import { useFirebaseFunctions } from './useFirebaseAuth'
 import { listOfflineTrips, removeOfflineTrip, saveOfflineTrip, type OfflineTripRecord } from './useOfflineTripQueue'
+import { resizePhotoForUpload } from '../utils/resizePhoto'
 
 // Shared data shapes used by diary entries and saved map locations.
 export interface FishingCatch {
   species: string
   quantity: number
+  time?: string
   lure?: string
   lureId?: string
   length?: string
@@ -132,6 +136,7 @@ function isFishingCatch(value: unknown): value is FishingCatch {
     typeof item.quantity === 'number' &&
     Number.isFinite(item.quantity) &&
     item.quantity >= 0 &&
+    (item.time === undefined || (typeof item.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(item.time))) &&
     (item.lure === undefined || typeof item.lure === 'string') &&
     (item.lureId === undefined || typeof item.lureId === 'string') &&
     (item.length === undefined || typeof item.length === 'string') &&
@@ -259,6 +264,33 @@ function isMissingStorageObject(error: unknown) {
     error.code === 'storage/object-not-found'
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return btoa(binary)
+}
+
+async function uploadPhotoThroughFunction(
+  tripId: string,
+  file: File,
+  getFunctionsClient: ReturnType<typeof useFirebaseFunctions>
+): Promise<string> {
+  const callable = httpsCallable<
+    { tripId: string; contentType: string; dataBase64: string },
+    { photoUrl: string }
+  >(getFunctionsClient, 'uploadTripPhoto')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const result = await callable({
+    tripId,
+    contentType: file.type,
+    dataBase64: bytesToBase64(bytes)
+  })
+  return result.data.photoUrl
+}
+
 // Loads and validates one user's Firestore collection; accepts its path and validator and returns typed records.
 async function loadCollection<T>(
   db: Firestore,
@@ -290,28 +322,23 @@ async function loadHiddenTackleboxLures(db: Firestore, userId: string): Promise<
 // Uploads catch images and attaches download URLs; accepts trip/photo context and returns updated catch records.
 async function uploadCatchPhotos(
   storage: NonNullable<ReturnType<typeof useFirebaseStorage>>,
-  userId: string,
+  functions: ReturnType<typeof useFirebaseFunctions>,
   tripId: string,
   catches: FishingCatch[],
   photoFiles: Array<File | null>,
-  uploadedReferences: ReturnType<typeof storageRef>[],
-  stablePaths = false
+  uploadedReferences: ReturnType<typeof storageRef>[]
 ): Promise<FishingCatch[]> {
   if (photoFiles.length !== catches.length) throw new Error('Catch photo data did not match the catch entries.')
   const selectedPhotos = photoFiles.filter((photo): photo is File => photo !== null)
   if (selectedPhotos.some(photo => !photo.type.startsWith('image/'))) throw new Error('Catch attachments must be image files.')
-  if (selectedPhotos.some(photo => photo.size >= 10 * 1024 * 1024)) throw new Error('Each catch photo must be smaller than 10 MB.')
-
   const results = await Promise.allSettled(photoFiles.map(async (photo, index) => {
     const catchItem = catches[index]
     if (!catchItem) throw new Error('A catch photo did not match a catch entry.')
     if (!photo) return catchItem
-    const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const photoName = stablePaths ? `${index}-${safeName}` : `${Date.now()}-${crypto.randomUUID()}-${index}-${safeName}`
-    const reference = storageRef(storage, `users/${userId}/trips/${tripId}/catches/${photoName}`)
-    uploadedReferences.push(reference)
-    await uploadBytes(reference, photo, { contentType: photo.type })
-    return { ...catchItem, photo: await getDownloadURL(reference) }
+    const preparedPhoto = await resizePhotoForUpload(photo)
+    const photoUrl = await uploadPhotoThroughFunction(tripId, preparedPhoto, functions)
+    uploadedReferences.push(storageRef(storage, photoUrl))
+    return { ...catchItem, photo: photoUrl }
   }))
   const failedUpload = results.find(result => result.status === 'rejected')
   if (failedUpload?.status === 'rejected') throw failedUpload.reason
@@ -325,29 +352,27 @@ async function uploadCatchPhotos(
 async function persistTrip(
   db: Firestore,
   storage: NonNullable<ReturnType<typeof useFirebaseStorage>>,
+  functions: ReturnType<typeof useFirebaseFunctions>,
   userId: string,
   tripId: string,
   trip: Omit<FishingTrip, 'id'>,
   photos: File[],
-  catchPhotoFiles: Array<File | null>,
-  stablePaths = false
+  catchPhotoFiles: Array<File | null>
 ): Promise<FishingTrip> {
   const uploadedReferences: ReturnType<typeof storageRef>[] = []
   try {
-    const uploadResults = await Promise.allSettled(photos.map(async (photo, index) => {
-      const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const photoName = stablePaths ? `photos/${index}-${safeName}` : `${Date.now()}-${index}-${safeName}`
-      const reference = storageRef(storage, `users/${userId}/trips/${tripId}/${photoName}`)
-      uploadedReferences.push(reference)
-      await uploadBytes(reference, photo, { contentType: photo.type })
-      return getDownloadURL(reference)
+    const uploadResults = await Promise.allSettled(photos.map(async (photo) => {
+      const preparedPhoto = await resizePhotoForUpload(photo)
+      const photoUrl = await uploadPhotoThroughFunction(tripId, preparedPhoto, functions)
+      uploadedReferences.push(storageRef(storage, photoUrl))
+      return photoUrl
     }))
     const failedUpload = uploadResults.find(result => result.status === 'rejected')
     if (failedUpload?.status === 'rejected') throw failedUpload.reason
     const photoUrls = uploadResults
       .filter((result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled')
       .map(result => result.value)
-    const catchRecords = await uploadCatchPhotos(storage, userId, tripId, trip.catches, catchPhotoFiles, uploadedReferences, stablePaths)
+    const catchRecords = await uploadCatchPhotos(storage, functions, tripId, trip.catches, catchPhotoFiles, uploadedReferences)
     const savedTrip = { ...trip, catches: catchRecords, photos: photoUrls }
 
     await setDoc(doc(db, 'users', userId, 'trips', tripId), {
@@ -371,7 +396,10 @@ async function persistTrip(
 function isConnectionError(error: unknown) {
   if (!import.meta.client || !navigator.onLine) return true
   return typeof error === 'object' && error !== null && 'code' in error &&
-    ['unavailable', 'deadline-exceeded', 'network-request-failed', 'storage/retry-limit-exceeded'].includes(String(error.code))
+    [
+      'unavailable', 'deadline-exceeded', 'network-request-failed', 'storage/retry-limit-exceeded',
+      'functions/unavailable', 'functions/deadline-exceeded', 'functions/network-request-failed'
+    ].includes(String(error.code))
 }
 
 // Provides user-scoped fishing data, persistence, and offline synchronization; takes no input and returns state/actions.
@@ -387,11 +415,12 @@ export function useFishingData() {
   const { Network } = useNativeFeatures()
   const db = import.meta.client ? useFirebaseDatabase() : null
   const storage = import.meta.client ? useFirebaseStorage() : null
+  const functions = import.meta.client ? useFirebaseFunctions() : null
 
   // Synchronizes queued trips for the active user; takes no input and updates queue/data or sync-error state.
   async function syncPendingTrips() {
     const account = user.value
-    if (!account || !db || !storage || !import.meta.client || !isOnline.value || syncingOfflineTrips.value) return
+    if (!account || !db || !storage || !functions || !import.meta.client || !isOnline.value || syncingOfflineTrips.value) return
     syncingOfflineTrips.value = true
     offlineSyncError.value = null
     try {
@@ -401,12 +430,12 @@ export function useFishingData() {
         const savedTrip = await persistTrip(
           db,
           storage,
+          functions,
           account.uid,
           queued.tripId,
           queued.trip,
           queued.photos,
-          queued.catchPhotoFiles,
-          true
+          queued.catchPhotoFiles
         )
         await removeOfflineTrip(account.uid, queued.tripId)
         if (user.value?.uid === account.uid) {
@@ -416,7 +445,12 @@ export function useFishingData() {
       }
     } catch (caughtError) {
       console.error('Could not sync one or more offline fishing trips.', caughtError)
-      offlineSyncError.value = 'A trip is still waiting to sync. Tidelog will retry when your connection is available.'
+      offlineSyncError.value = typeof caughtError === 'object' &&
+        caughtError !== null &&
+        'code' in caughtError &&
+        caughtError.code === 'functions/resource-exhausted'
+        ? 'The monthly photo limit was reached. This trip is saved on this device; discard it and log it again without photos, or wait until next month to sync it.'
+        : 'A trip is still waiting to sync. Tidelog will retry when your connection is available.'
     } finally {
       syncingOfflineTrips.value = false
     }
@@ -537,24 +571,24 @@ export function useFishingData() {
     catchPhotoFiles: Array<File | null> = trip.catches.map(() => null)
   ): Promise<boolean> {
     const account = user.value
-    if (!account || !db || !storage) throw new Error('Sign in before saving a fishing trip.')
+    if (!account || !db || !storage || !functions) throw new Error('Sign in before saving a fishing trip.')
     if (photos.length > 6) throw new Error('You can attach up to 6 photos per trip.')
     if (photos.some(photo => !photo.type.startsWith('image/'))) throw new Error('Trip attachments must be image files.')
-    if (photos.some(photo => photo.size >= 10 * 1024 * 1024)) throw new Error('Each trip photo must be smaller than 10 MB.')
     if (catchPhotoFiles.length !== trip.catches.length) throw new Error('Catch photo data did not match the catch entries.')
     if (catchPhotoFiles.some(photo => photo && !photo.type.startsWith('image/'))) throw new Error('Catch attachments must be image files.')
-    if (catchPhotoFiles.some(photo => photo && photo.size >= 10 * 1024 * 1024)) throw new Error('Each catch photo must be smaller than 10 MB.')
 
     const tripId = crypto.randomUUID()
     // Stores this trip locally for later upload; takes no input and updates queue state after persistence.
     const queueTrip = async () => {
+      const preparedPhotos = await Promise.all(photos.map(resizePhotoForUpload))
+      const preparedCatchPhotos = await Promise.all(catchPhotoFiles.map(photo => photo ? resizePhotoForUpload(photo) : null))
       const queued: OfflineTripRecord = {
         key: `${account.uid}:${tripId}`,
         userId: account.uid,
         tripId,
         trip,
-        photos,
-        catchPhotoFiles,
+        photos: preparedPhotos,
+        catchPhotoFiles: preparedCatchPhotos,
         queuedAt: Date.now()
       }
       await saveOfflineTrip(queued)
@@ -569,7 +603,7 @@ export function useFishingData() {
       return true
     }
     try {
-      const savedTrip = await persistTrip(db, storage, account.uid, tripId, trip, photos, catchPhotoFiles, true)
+      const savedTrip = await persistTrip(db, storage, functions, account.uid, tripId, trip, photos, catchPhotoFiles)
       if (user.value?.uid === account.uid) data.value.trips.unshift(savedTrip)
       return false
     } catch (error) {
@@ -588,13 +622,13 @@ export function useFishingData() {
     catchPhotoFiles: Array<File | null> = trip.catches.map(() => null)
   ) {
     const account = user.value
-    if (!account || !db || !storage) throw new Error('Sign in before updating a fishing trip.')
+    if (!account || !db || !storage || !functions) throw new Error('Sign in before updating a fishing trip.')
     const previousTrip = data.value.trips.find(savedTrip => savedTrip.id === tripId)
     const uploadedReferences: ReturnType<typeof storageRef>[] = []
     let savedCatches: FishingCatch[]
 
     try {
-      savedCatches = await uploadCatchPhotos(storage, account.uid, tripId, trip.catches, catchPhotoFiles, uploadedReferences)
+      savedCatches = await uploadCatchPhotos(storage, functions, tripId, trip.catches, catchPhotoFiles, uploadedReferences)
       await updateDoc(doc(db, 'users', account.uid, 'trips', tripId), { ...trip, catches: savedCatches })
     } catch (error) {
       await Promise.all(uploadedReferences.map(async (reference) => {
@@ -651,6 +685,68 @@ export function useFishingData() {
       if (failedDeletions.length) {
         console.error('Could not remove one or more photos after deleting a fishing trip.', failedDeletions)
         throw new Error('Trip deleted, but some photos could not be removed.')
+      }
+    }
+  }
+
+  async function getPhotoStorageUsage(): Promise<{ bytes: number; files: number }> {
+    const account = user.value
+    if (!account || !storage) throw new Error('Sign in before checking photo storage.')
+
+    const root = storageRef(storage, `users/${account.uid}/trips`)
+    const pending = [root]
+    const fileReferences: ReturnType<typeof storageRef>[] = []
+    while (pending.length) {
+      const directory = pending.pop()
+      if (!directory) continue
+      const result = await listAll(directory)
+      fileReferences.push(...result.items)
+      pending.push(...result.prefixes)
+    }
+
+    const metadata = await Promise.all(fileReferences.map(reference => getMetadata(reference)))
+    return {
+      bytes: metadata.reduce((total, item) => total + Number(item.size), 0),
+      files: metadata.length
+    }
+  }
+
+  // Detaches one owned image from its trip before deleting its storage object.
+  async function removeTripPhoto(tripId: string, photoUrl: string): Promise<void> {
+    const account = user.value
+    if (!account || !db || !storage) throw new Error('Sign in before removing a fishing photo.')
+    const trip = data.value.trips.find(item => item.id === tripId)
+    if (!trip) throw new Error('This trip could not be found.')
+
+    const reference = storageRef(storage, photoUrl)
+    if (!reference.fullPath.startsWith(`users/${account.uid}/trips/${tripId}/`)) {
+      throw new Error('This photo does not belong to the selected trip.')
+    }
+
+    const hasTripPhoto = trip.photos?.includes(photoUrl) ?? false
+    const hasCatchPhoto = trip.catches.some(item => item.photo === photoUrl)
+    if (!hasTripPhoto && !hasCatchPhoto) throw new Error('This photo is no longer attached to the trip.')
+
+    const photos = (trip.photos ?? []).filter(photo => photo !== photoUrl)
+    const catches = trip.catches.map((item) => {
+      if (item.photo !== photoUrl) return item
+      const updatedCatch = { ...item }
+      delete updatedCatch.photo
+      return updatedCatch
+    })
+    await updateDoc(doc(db, 'users', account.uid, 'trips', tripId), { photos, catches })
+    if (user.value?.uid === account.uid) {
+      data.value.trips = data.value.trips.map(item =>
+        item.id === tripId ? { ...item, photos, catches } : item
+      )
+    }
+
+    try {
+      await deleteObject(reference)
+    } catch (error) {
+      if (!isMissingStorageObject(error)) {
+        console.error('Photo was detached from the trip but could not be deleted from storage.', error)
+        throw new Error('Photo removed from the trip, but could not be deleted from storage.')
       }
     }
   }
@@ -825,6 +921,8 @@ export function useFishingData() {
     addTrip,
     updateTrip,
     deleteTrip,
+    getPhotoStorageUsage,
+    removeTripPhoto,
     addSpot,
     deleteSpot,
     addTackleboxLure,

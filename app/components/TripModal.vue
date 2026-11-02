@@ -92,6 +92,7 @@ function newCatch(): CatchDraft {
     id: nextCatchId.value++,
     species: '',
     quantity: 1,
+    time: '',
     lureId: '',
     individualDetails: false,
     length: '',
@@ -137,6 +138,7 @@ function resetDraft(trip: FishingTrip | null = null) {
           ...newCatch(),
           species: item.species,
           quantity: item.quantity,
+          time: item.time ?? '',
           individualDetails: item.length !== undefined || item.weight !== undefined || item.released !== undefined || item.photo !== undefined,
           length: item.length ?? '',
           weight: item.weight ?? '',
@@ -443,6 +445,7 @@ function submitTrip() {
       return {
         species: species.trim(),
         quantity: catchItem.individualDetails ? 1 : quantity,
+        ...(catchItem.time ? { time: catchItem.time } : {}),
         ...(lure ? { lure } : {}),
         ...(lures.value.find(item => item.id === lureId)?.inventoryLureId
           ? { lureId: lures.value.find(item => item.id === lureId)?.inventoryLureId }
