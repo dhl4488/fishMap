@@ -1,7 +1,13 @@
 <script setup lang="ts">
 const route = useRoute()
 
-useHead({ link: [{ rel: 'manifest', href: asset('/manifest.webmanifest') }] })
+useHead({
+  link: [
+    { rel: 'icon', type: 'image/png', href: asset('/assets/tide-log-icon.png') },
+    { rel: 'apple-touch-icon', href: asset('/assets/tide-log-icon.png') },
+    { rel: 'manifest', href: asset('/manifest.webmanifest') }
+  ]
+})
 </script>
 
 <template>

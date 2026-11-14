@@ -3,7 +3,7 @@ import type { FishingCombo, FishingLure, FishingSpot, FishingTrip } from '../com
 import { formatTripConditions } from '../utils/tripConditions'
 import { formatCatchTime } from '../utils/fishingInsights'
 
-useHead({ title: 'My diary · Tidelog', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
+useHead({ title: 'My diary · Reeliary', meta: [{ name: 'description', content: 'Browse and search your fishing trip diary.' }] })
 
 const {
   data,
@@ -179,7 +179,7 @@ async function exportPdf() {
       addText(title, { bold: true, size: 13, gapAfter: 7 })
     }
 
-    addText('Tidelog fishing journal', { bold: true, size: 22, gapAfter: 5 })
+    addText('Reeliary fishing journal', { bold: true, size: 22, gapAfter: 5 })
     addText(`Exported ${new Date().toLocaleString()} · ${data.value.trips.length} trips`, { size: 12, gapAfter: 10 })
 
     addSection('Fishing trips')
@@ -286,9 +286,9 @@ async function exportPdf() {
       pdf.setFont('helvetica', 'normal')
       pdf.setFontSize(8)
       pdf.setTextColor(130, 144, 138)
-      pdf.text(`Tidelog · ${page} / ${pageCount}`, pageWidth - margin, pageHeight - 20, { align: 'right' })
+      pdf.text(`Reeliary · ${page} / ${pageCount}`, pageWidth - margin, pageHeight - 20, { align: 'right' })
     }
-    pdf.save(`tidelog-export-${new Date().toISOString().slice(0, 10)}.pdf`)
+    pdf.save(`reeliary-export-${new Date().toISOString().slice(0, 10)}.pdf`)
   } catch (error) {
     exportError.value = error instanceof Error ? error.message : 'Could not create the PDF export.'
   }
@@ -412,7 +412,7 @@ function exportCsv() {
     ...rows.map(row => csvColumns.map(column => escapeCsv(row[column])).join(','))
   ].join('\r\n')
   downloadExport(
-    `tidelog-backup-${new Date().toISOString().slice(0, 10)}.csv`,
+    `reeliary-backup-${new Date().toISOString().slice(0, 10)}.csv`,
     `\uFEFF${contents}`,
     'text/csv;charset=utf-8'
   )

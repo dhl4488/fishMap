@@ -5,19 +5,19 @@
   <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Tidelog uses the camera when you choose to photograph a fish for your trip log.</string>
+	<string>Reeliary uses the camera when you choose to photograph a fish for your trip log.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Tidelog lets you choose a fish photo from your photo library for a trip log.</string>
+	<string>Reeliary lets you choose a fish photo from your photo library for a trip log.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Tidelog can save a fish photo to your photo library only if you choose to do so.</string>
+	<string>Reeliary can save a fish photo to your photo library only if you choose to do so.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Tidelog uses your location only when you tap Use my current location to mark a fishing spot.</string>
+	<string>Reeliary uses your location only when you tap Use my current location to mark a fishing spot.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Tidelog uses your location only when you tap Use my current location to mark a fishing spot.</string>
+	<string>Reeliary uses your location only when you tap Use my current location to mark a fishing spot.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Tidelog</string>
+        <string>Reeliary</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

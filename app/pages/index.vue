@@ -15,7 +15,7 @@ import {
 } from '../utils/advancedFishingInsights'
 
 // Set browser metadata for the dashboard route.
-useHead({ title: 'Overview · Tidelog', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
+useHead({ title: 'Overview · Reeliary', meta: [{ name: 'description', content: 'Your fishing diary, all in one place.' }] })
 
 // The composable loads data for the authenticated user and persists new trips.
 const { data, addTrip, addSpot, addCombo, isOnline, loading: dataLoading, error: dataError } = useFishingData()

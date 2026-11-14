@@ -1,4 +1,4 @@
-# Builds Tidelog as a static site and publishes it to GitHub Pages on every push to main.
+# Builds Reeliary as a static site and publishes it to GitHub Pages on every push to main.
 # Site URL: https://<your-username>.github.io/<repo-name>/ (or your custom domain, if one is set in Settings > Pages)
 #
 # One-time setup (see README "Hosting on GitHub Pages"):

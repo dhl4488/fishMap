@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import { deleteObject, getMetadata, listAll, ref as storageRef } from 'firebase/storage'
 import { httpsCallable } from 'firebase/functions'
-import type { TidelogUser } from './useFirebaseAuth'
+import type { ReeliaryUser } from './useFirebaseAuth'
 import { useFirebaseFunctions } from './useFirebaseAuth'
 import { listOfflineTrips, removeOfflineTrip, saveOfflineTrip, type OfflineTripRecord } from './useOfflineTripQueue'
 import { resizePhotoForUpload } from '../utils/resizePhoto'
@@ -452,7 +452,7 @@ export function useFishingData() {
         'code' in caughtError &&
         caughtError.code === 'functions/resource-exhausted'
         ? 'The monthly photo limit was reached. This trip is saved on this device; discard it and log it again without photos, or wait until next month to sync it.'
-        : 'A trip is still waiting to sync. Tidelog will retry when your connection is available.'
+        : 'A trip is still waiting to sync. Reeliary will retry when your connection is available.'
     } finally {
       syncingOfflineTrips.value = false
     }
@@ -470,7 +470,7 @@ export function useFishingData() {
   }
 
   // Loads queued and Firestore data for one account; accepts the account and replaces shared data/error/loading state.
-  async function loadUserData(account: TidelogUser | null) {
+  async function loadUserData(account: ReeliaryUser | null) {
     data.value = { trips: [], spots: [], combos: [], tackleboxLures: [], tackleboxRods: [], tackleboxReels: [], hiddenTackleboxLures: [] }
     pendingTripIds.value = []
     error.value = null

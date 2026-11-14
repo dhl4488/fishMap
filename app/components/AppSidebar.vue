@@ -21,9 +21,9 @@ const navigation = [
 
 <template>
   <aside class="sidebar">
-    <NuxtLink to="/" class="brand" aria-label="Tidelog home">
+    <NuxtLink to="/" class="brand" aria-label="Reeliary home">
       <img class="brand-mark" :src="asset('/assets/tide-log-icon.png')" alt="">
-      <span class="brand-name">tidelog<span class="brand-period">.</span></span>
+      <span class="brand-name">reeliary<span class="brand-period">.</span></span>
     </NuxtLink>
 
     <div class="sidebar-caption">YOUR SPACE</div>

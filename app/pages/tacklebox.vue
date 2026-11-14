@@ -3,7 +3,7 @@ import type { TackleboxLure, TackleboxReel, TackleboxRod } from '../composables/
 import { lureTypes, reelTypes, rodTypes } from '../utils/tackleboxGear'
 import { normalizeMeasurementToMetric } from '../utils/tripInputValidation'
 
-useHead({ title: 'Tacklebox · Tidelog', meta: [{ name: 'description', content: 'Manage your lures, rods, and reels and see what you have caught with them.' }] })
+useHead({ title: 'Tacklebox · Reeliary', meta: [{ name: 'description', content: 'Manage your lures, rods, and reels and see what you have caught with them.' }] })
 
 const {
   data,

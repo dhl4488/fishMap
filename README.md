@@ -1,6 +1,6 @@
-# Tidelog
+# Reeliary
 
-Tidelog is a Nuxt fishing diary. Users sign in with Firebase Authentication; trips and saved fishing spots are stored in separate Firestore collections under each account's Firebase UID.
+Reeliary is a Nuxt fishing diary. Users sign in with Firebase Authentication; trips and saved fishing spots are stored in separate Firestore collections under each account's Firebase UID.
 
 Trip entries include a picker of 30 commonly caught Ontario fish, with an "Other" option for species outside the list. Entries can record multiple lures with individual performance notes, hook, line, weight, and water depth. Add optional individual fish details (length, weight, kept or released status, and a photo) to a catch; detailed entries represent one fish, while simpler species-and-quantity entries remain available. Save named fishing combo presets to quickly apply a set of lures, hook, line, and weight to a trip.
 The **Tacklebox** page stores a personal lure inventory with name, brand, type, color/pattern, size/weight, and notes, as well as an optional rod inventory with brand, type, length, power, action, and notes. Select saved gear while logging a trip; trip logs keep a readable gear-name snapshot if an inventory item is later removed. Lure entries can be removed from the tacklebox without deleting their trip logs or catch history. The tacklebox summarizes lure catch totals by species.
@@ -16,7 +16,7 @@ The site is built and published by `.github/workflows/deploy-pages.yml` on every
 1. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions** (not "Deploy from a branch", which only shows this README).
 2. **Settings → Secrets and variables → Actions → Variables:** add the same Firebase values as your local `.env`:
    `NUXT_PUBLIC_FIREBASE_API_KEY`, `NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NUXT_PUBLIC_FIREBASE_PROJECT_ID`, `NUXT_PUBLIC_FIREBASE_APP_ID`, `NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NUXT_PUBLIC_FIREBASE_MEASUREMENT_ID`.
-3. **Firebase console → Authentication → Settings → Authorized domains:** add `<your-username>.github.io` or the custom domain (`tidelog.danhlee.ca`).
+3. **Firebase console → Authentication → Settings → Authorized domains:** add `<your-username>.github.io` or the existing custom domain (`tidelog.danhlee.ca`).
 4. **Photo uploads and account deletion:** enable Cloud Storage and the Blaze plan in Firebase. Run `npm install --prefix functions`, then deploy the upload function and rules from the repository root with `npx firebase-tools deploy --only functions,storage,firestore:rules`. Photos are automatically downscaled and recompressed to a target of about 1 MB before upload; very large images are progressively reduced. The backend also enforces 100 photo uploads per account per UTC calendar month. Reuploads count toward the limit, and deleting photos does not restore monthly allowance. The functions run in `us-central1`; configure that region to match your Firebase data location if needed. Account deletion removes the user's Storage objects, Firestore data, photo quota records, and Firebase Authentication account. The callable requires a recent sign-in.
 
 The workflow includes public Firebase web config defaults for the build; repository Variables with the same `NUXT_PUBLIC_FIREBASE_*` names override them.

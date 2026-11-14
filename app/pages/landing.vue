@@ -1,16 +1,16 @@
 <script setup lang="ts">
 useHead({
-  title: 'Tidelog · Your fishing journal',
-  meta: [{ name: 'description', content: 'Keep a thoughtful record of your fishing trips, catches, conditions, and favorite spots with Tidelog.' }]
+  title: 'Reeliary · Your fishing journal',
+  meta: [{ name: 'description', content: 'Keep a thoughtful record of your fishing trips, catches, conditions, and favorite spots with Reeliary.' }]
 })
 </script>
 
 <template>
   <main class="landing-page">
     <header class="landing-header">
-      <NuxtLink to="/landing" class="landing-brand" aria-label="Tidelog home">
+      <NuxtLink to="/landing" class="landing-brand" aria-label="Reeliary home">
         <img :src="asset('/assets/tide-log-icon.png')" alt="">
-        <span>tidelog<span class="brand-period">.</span></span>
+        <span>reeliary<span class="brand-period">.</span></span>
       </NuxtLink>
       <nav aria-label="Account">
         <NuxtLink class="landing-signin" to="/login">Sign in</NuxtLink>
@@ -26,7 +26,7 @@ useHead({
         <NuxtLink class="landing-primary" to="/login?mode=create">Start your fishing journal <span aria-hidden="true">→</span></NuxtLink>
         <NuxtLink class="landing-secondary" to="/login">I already have an account</NuxtLink>
       </div>
-      <div class="landing-preview" aria-label="What you can record with Tidelog">
+      <div class="landing-preview" aria-label="What you can record with Reeliary">
         <div class="preview-topline">
           <div class="preview-brand"><span class="preview-mark">⌁</span><strong>Trip log</strong></div>
           <span class="preview-date">A day on the water</span>
@@ -41,7 +41,7 @@ useHead({
       </div>
     </section>
 
-    <section class="landing-features" aria-label="Tidelog features">
+    <section class="landing-features" aria-label="Reeliary features">
       <article>
         <span class="feature-icon" aria-hidden="true">▤</span>
         <h2>Keep the details</h2>
@@ -61,7 +61,7 @@ useHead({
 
     <footer class="landing-footer">
       <span>Made for the days you want to remember.</span>
-      <span>Tidelog fishing journal</span>
+      <span>Reeliary fishing journal</span>
     </footer>
   </main>
 </template>

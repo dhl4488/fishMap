@@ -1,5 +1,5 @@
 <script setup lang="ts">
-useHead({ title: 'Account · Tidelog', meta: [{ name: 'description', content: 'Manage your Tidelog account.' }] })
+useHead({ title: 'Account · Reeliary', meta: [{ name: 'description', content: 'Manage your Reeliary account.' }] })
 
 const { deleteAccount: permanentlyDeleteAccount } = useFirebaseAuth()
 const confirmation = ref('')

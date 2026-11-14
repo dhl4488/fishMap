@@ -1,6 +1,6 @@
 <script lang="ts" setup>
   // Set browser metadata for the about page.
-  useHead({ title: 'About Tidelog', meta: [{ name: 'description', content: 'Learn more about Tidelog, the fishing logbook app for anglers.' }] })
+  useHead({ title: 'About Reeliary', meta: [{ name: 'description', content: 'Learn more about Reeliary, the fishing logbook app for anglers.' }] })
 
   const creatorPhoto = asset('/assets/creator_photo.jpg')
 </script>
@@ -23,18 +23,18 @@
 
         <section class="page-content">
             <div class="content-block">
-                <h2>About Tidelog</h2>
-                <p>Tidelog is a fishing logbook app designed for anglers to track their fishing trips, catches, and experiences. It provides a user-friendly interface to log details such as location, weather conditions, bait used, and more.</p>
+                <h2>About Reeliary</h2>
+                <p>Reeliary is a fishing logbook app designed for anglers to track their fishing trips, catches, and experiences. It provides a user-friendly interface to log details such as location, weather conditions, bait used, and more.</p>
             </div>
 
             <div class="content-block">
                 <h2>About the Creator</h2>
-                <img :src="creatorPhoto" alt="Daniel Lee, the creator of Tidelog">
-                <p>Hi, I’m Daniel Lee, the creator of Tidelog.</p>
+                <img :src="creatorPhoto" alt="Daniel Lee, the creator of Reeliary">
+                <p>Hi, I’m Daniel Lee, the creator of Reeliary.</p>
                 <p>My dad got me into fishing when I was young. We’d mostly catch sunfish and catfish back then, and these days I spend a lot of my time fishing for bass in southern Ontario. After enough trips, the details started to blur together: where I was, what the conditions were, and what actually worked. I kept meaning to write it all down and never did.</p>
                 <p>My background is in geospatial analysis. I studied Geomatics at the University of Waterloo, where I worked a lot with maps and location data. Fishing turned out to be a good fit for that kind of thinking, since where and when you fish, and the conditions you’re dealing with, all make a difference.</p>
-                <p>I built Tidelog to solve that problem for myself and to branch out into web development. I used it as a project to learn the Nuxt framework, and building it from scratch taught me a lot along the way.</p>
-                <p>Tidelog is essentially a fishing diary. You can log your trips, record your catches, and look back on what’s worked for you over time.</p>
+                <p>I built Reeliary to solve that problem for myself and to branch out into web development. I used it as a project to learn the Nuxt framework, and building it from scratch taught me a lot along the way.</p>
+                <p>Reeliary is essentially a fishing diary. You can log your trips, record your catches, and look back on what’s worked for you over time.</p>
                 <p>It’s a mix of two things I enjoy, fishing and technology, and I’m still adding to it. Thanks for checking it out.</p>
             </div>
         </section>

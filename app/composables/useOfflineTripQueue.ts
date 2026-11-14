@@ -29,7 +29,7 @@ function openQueueDatabase(): Promise<IDBDatabase> {
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error ?? new Error('Could not open local offline storage.'))
-    request.onblocked = () => reject(new Error('Local offline storage is busy in another tab. Close other Tidelog tabs and try again.'))
+    request.onblocked = () => reject(new Error('Local offline storage is busy in another tab. Close other Reeliary tabs and try again.'))
   })
 }
 

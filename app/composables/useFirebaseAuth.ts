@@ -2,6 +2,7 @@ import {
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -13,7 +14,7 @@ import { getStorage, type FirebaseStorage } from 'firebase/storage'
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions'
 import { removeOfflineTripsForUser } from './useOfflineTripQueue'
 
-export interface TidelogUser {
+export interface ReeliaryUser {
   uid: string
   email: string | null
   displayName: string | null
@@ -60,7 +61,7 @@ function getFirebaseClient(options: FirebaseOptions): FirebaseClient | null {
 }
 
 // Converts a Firebase user to the app's public user shape; accepts a Firebase user and returns its mapped form or null.
-function toTidelogUser(user: User | null): TidelogUser | null {
+function toReeliaryUser(user: User | null): ReeliaryUser | null {
   if (!user) return null
   return { uid: user.uid, email: user.email, displayName: user.displayName }
 }
@@ -77,7 +78,7 @@ export function useFirebaseAuth() {
     messagingSenderId: runtimeConfig.firebaseMessagingSenderId,
     measurementId: runtimeConfig.firebaseMeasurementId
   }
-  const user = useState<TidelogUser | null>('firebase-user', () => null)
+  const user = useState<ReeliaryUser | null>('firebase-user', () => null)
   const ready = useState('firebase-auth-ready', () => false)
   const listenerStarted = useState('firebase-auth-listener-started', () => false)
 
@@ -106,7 +107,7 @@ export function useFirebaseAuth() {
     listenerStarted.value = true
     await new Promise<void>((resolve) => {
       onAuthStateChanged(client.auth, (firebaseUser) => {
-        user.value = toTidelogUser(firebaseUser)
+        user.value = toReeliaryUser(firebaseUser)
         ready.value = true
         resolve()
       }, (error) => {
@@ -123,7 +124,7 @@ export function useFirebaseAuth() {
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
     const credential = await createUserWithEmailAndPassword(client.auth, email, password)
     await updateProfile(credential.user, { displayName })
-    user.value = toTidelogUser(credential.user)
+    user.value = toReeliaryUser(credential.user)
   }
 
   // Signs in with email/password; accepts credentials and updates shared user state after authentication.
@@ -131,7 +132,14 @@ export function useFirebaseAuth() {
     const client = getFirebaseClient(firebaseOptions)
     if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
     const credential = await signInWithEmailAndPassword(client.auth, email, password)
-    user.value = toTidelogUser(credential.user)
+    user.value = toReeliaryUser(credential.user)
+  }
+
+  // Sends Firebase's password reset email to an account; accepts its email address.
+  async function sendPasswordReset(email: string): Promise<void> {
+    const client = getFirebaseClient(firebaseOptions)
+    if (!client) throw new Error('Firebase is not configured. Add the Firebase environment variables and restart the app.')
+    await sendPasswordResetEmail(client.auth, email)
   }
 
   // Signs out the active Firebase user; takes no input and clears shared user state after success.
@@ -170,7 +178,7 @@ export function useFirebaseAuth() {
     }
   }
 
-  return { user, ready, isConfigured, initialize, createAccount, signIn, signOutUser, deleteAccount }
+  return { user, ready, isConfigured, initialize, createAccount, signIn, sendPasswordReset, signOutUser, deleteAccount }
 }
 
 // Returns the configured Firestore client; takes no input and throws when Firebase is unavailable.

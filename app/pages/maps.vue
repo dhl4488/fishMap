@@ -3,7 +3,7 @@ import type { FishingSpot, FishingTrip } from '../composables/useFishingData'
 import { Geolocation } from '@capacitor/geolocation'
 import { formatTripConditions } from '../utils/tripConditions'
 
-useHead({ title: 'Fishing spots · Tidelog', meta: [{ name: 'description', content: 'Map, save, and revisit your favorite fishing spots.' }] })
+useHead({ title: 'Fishing spots · Reeliary', meta: [{ name: 'description', content: 'Map, save, and revisit your favorite fishing spots.' }] })
 
 const { data, addSpot, deleteSpot, loading: dataLoading, error: dataError } = useFishingData()
 const { successFeedback } = useNativeFeatures()

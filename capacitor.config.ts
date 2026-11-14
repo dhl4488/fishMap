@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.tidelog.app',
-  appName: 'Tidelog',
+  appName: 'Reeliary',
   webDir: '.output/public',
   ios: {
     contentInset: 'automatic',
